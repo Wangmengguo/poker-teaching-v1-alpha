@@ -25,7 +25,7 @@ from .policy import (
     policy_turn_v1,
 )
 from .types import Observation, PolicyConfig
-from .utils import drop_nones, size_to_amount, stable_roll, raise_to_amount
+from .utils import drop_nones, raise_to_amount, size_to_amount, stable_roll
 
 
 def _build_observation(gs, actor: int, acts: list[LegalAction]):
