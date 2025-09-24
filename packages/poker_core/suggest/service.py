@@ -25,7 +25,7 @@ from .policy import (
     policy_turn_v1,
 )
 from .types import Observation, PolicyConfig
-from .utils import drop_nones, size_to_amount, stable_roll
+from .utils import drop_nones, size_to_amount, stable_roll, raise_to_amount
 
 
 def _build_observation(gs, actor: int, acts: list[LegalAction]):
@@ -211,8 +211,6 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
                 if suggested.get("action") == "raise":
                     # use raise-to semantics for postflop
                     try:
-                        from .utils import raise_to_amount
-
                         modes = ctx.modes
                         cap_ratio = (
                             (modes.get("HU", {}) or {}).get("postflop_cap_ratio", 0.85)
