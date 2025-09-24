@@ -188,7 +188,7 @@ def _replace_player(p: Player, **kw) -> Player:
 def _update_player(gs: GameState, idx: int, newp: Player) -> GameState:
     lst = list(gs.players)
     lst[idx] = newp
-    return replace(gs, players=tuple(lst))
+    return replace(gs, players=tuple(lst))  # type: ignore
 
 
 def _street_first_to_act(gs: GameState) -> int:
@@ -249,7 +249,7 @@ def _maybe_advance_street(gs: GameState) -> GameState:
         # 连续推进直至摊牌
         while True:
             if cur.street in ("preflop", "flop", "turn"):
-                nxt = {"preflop": "flop", "flop": "turn", "turn": "river"}[cur.street]
+                nxt: Street = {"preflop": "flop", "flop": "turn", "turn": "river"}[cur.street]  # type: ignore
                 # 使用当前状态推进，保持 _advance 一致清理
                 gs = cur
                 cur = _reset_street(gs, nxt)
@@ -266,7 +266,7 @@ def _maybe_advance_street(gs: GameState) -> GameState:
     if gs.street in ("preflop", "flop", "turn"):
         if gs.open_bet:
             if _both_satisfied(gs):
-                nxt = {"preflop": "flop", "flop": "turn", "turn": "river"}[gs.street]
+                nxt: Street = {"preflop": "flop", "flop": "turn", "turn": "river"}[gs.street]  # type: ignore
                 # Preflop 特例处理：
                 # - 若仅有盲注（last_bet == BB），SB 补齐后需要 BB 再 check 一次才关闭本街；
                 # - 若已出现主动 bet/raise（last_bet > BB），则 call 后可立即进入下一街。
@@ -279,7 +279,7 @@ def _maybe_advance_street(gs: GameState) -> GameState:
                     return _advance(nxt)
         else:
             if gs.checks_in_round >= 2:
-                nxt = {"preflop": "flop", "flop": "turn", "turn": "river"}[gs.street]
+                nxt: Street = {"preflop": "flop", "flop": "turn", "turn": "river"}[gs.street]  # type: ignore
                 return _advance(nxt)
     elif gs.street == "river":
         if gs.open_bet:
@@ -580,11 +580,13 @@ def settle_if_needed(gs: GameState) -> GameState:
         gs = replace(gs, players=(p0, p1))
         gs.events.append({"t": "split", "amt": pot_total})
     else:
+        if winner is None:
+            raise ValueError("Winner cannot be None if not a tie")
         pw = gs.players[winner]
         pw = _replace_player(pw, stack=pw.stack + pot_total)
         lst = list(gs.players)
         lst[winner] = pw
-        gs = replace(gs, players=tuple(lst))
+        gs = replace(gs, players=tuple(lst))  # type: ignore
         gs.events.append({"t": "win_showdown", "who": winner, "amt": pot_total})
 
     return replace(gs, street="complete", to_act=-1)

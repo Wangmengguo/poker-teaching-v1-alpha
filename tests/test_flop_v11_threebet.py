@@ -45,9 +45,7 @@ def _obs_threebet(
         range_adv=False,
         nut_adv=False,
         facing_size_tag=(
-            "na"
-            if to_call == 0
-            else ("two_third+" if to_call >= int(0.75 * pot_now) else "half")
+            "na" if to_call == 0 else ("two_third+" if to_call >= int(0.75 * pot_now) else "half")
         ),
         pot_type="threebet",
     )
@@ -82,9 +80,7 @@ def test_3bet_pfr_ip_wet_value_le3_pot():
 
 
 def test_3bet_pfr_oop_semi_le3_strong_draw_lead_half():
-    ob = _obs_threebet(
-        ip=False, role="pfr", texture="semi", spr="le3", hand_class="strong_draw"
-    )
+    ob = _obs_threebet(ip=False, role="pfr", texture="semi", spr="le3", hand_class="strong_draw")
     suggested, rationale, name, meta = _call_policy(ob)
     assert suggested["action"] in ("bet", "check")
     if suggested["action"] == "bet":
@@ -92,9 +88,7 @@ def test_3bet_pfr_oop_semi_le3_strong_draw_lead_half():
 
 
 def test_3bet_caller_ip_dry_strong_draw_bet_half():
-    ob = _obs_threebet(
-        ip=True, role="caller", texture="dry", spr="le3", hand_class="strong_draw"
-    )
+    ob = _obs_threebet(ip=True, role="caller", texture="dry", spr="le3", hand_class="strong_draw")
     suggested, rationale, name, meta = _call_policy(ob)
     assert suggested["action"] in ("bet", "check")
     if suggested["action"] == "bet":
@@ -180,9 +174,7 @@ def test_3bet_caller_oop_wet_face_large_call_or_fold():
 
 
 def test_3bet_defaults_when_unknown():
-    ob = _obs_threebet(
-        ip=True, role="pfr", texture="dry", spr="3to6", hand_class="unknown"
-    )
+    ob = _obs_threebet(ip=True, role="pfr", texture="dry", spr="3to6", hand_class="unknown")
     suggested, rationale, name, meta = _call_policy(ob)
     assert suggested["action"] in ("bet", "check")
 

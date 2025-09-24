@@ -104,12 +104,15 @@ def _clamp_amount_if_needed(
 
 
 # 策略注册表（按版本/街选择）。PR-0：v1 映射到 v0 占位，保证行为不变。
-PolicyFn = Callable[[Observation, PolicyConfig], tuple[dict[str, Any], list[dict[str, Any]], str]]
+PolicyFn = Callable[
+    [Observation, PolicyConfig],
+    tuple[dict[str, Any] | Decision, list[dict[str, Any]], str, dict[str, Any]],
+]
 POLICY_REGISTRY_V0: dict[str, PolicyFn] = {
-    "preflop": policy_preflop_v0,
-    "flop": policy_postflop_v0_3,
-    "turn": policy_postflop_v0_3,
-    "river": policy_postflop_v0_3,
+    "preflop": policy_preflop_v0,  # type: ignore
+    "flop": policy_postflop_v0_3,  # type: ignore
+    "turn": policy_postflop_v0_3,  # type: ignore
+    "river": policy_postflop_v0_3,  # type: ignore
 }
 POLICY_REGISTRY_V1: dict[str, PolicyFn] = {
     "preflop": policy_preflop_v1,
@@ -218,7 +221,7 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
                         )
                     except Exception:
                         cap_ratio = 0.85
-                    eff_stack = None  # conservative; service-level clamp will still enforce bounds
+                    eff_stack = 0  # conservative; service-level clamp will still enforce bounds
                     amt = raise_to_amount(
                         pot_now=int(getattr(obs, "pot_now", obs.pot) or 0),
                         last_bet=int(getattr(gs, "last_bet", 0) or 0),

@@ -1,0 +1,240 @@
+
+[loose] RFI grid=85.2%, combos=78.6% (count=144)
+  small: defend=54.4% (combos 788/1326), 3bet share 15.2% (3bet combos 110), call#=99, raise#=19, overlap=11.3% [hint overlap]
+  mid: defend=39.8% (combos 544/1326), 3bet share 11.4% (3bet combos 60), call#=77, raise#=11, overlap=4.8%
+  large: defend=27.9% (combos 370/1326), 3bet share 9.2% (3bet combos 34), call#=46, raise#=5, overlap=0.0%
+
+[medium] RFI grid=72.2%, combos=65.3% (count=122)
+  small: defend=50.8% (combos 712/1326), 3bet share 12.2% (3bet combos 82), call#=95, raise#=16, overlap=8.8% [hint overlap]
+  mid: defend=39.8% (combos 544/1326), 3bet share 11.4% (3bet combos 60), call#=77, raise#=11, overlap=4.8%
+  large: defend=27.9% (combos 370/1326), 3bet share 9.2% (3bet combos 34), call#=46, raise#=5, overlap=0.0%
+
+[tight] RFI grid=63.3%, combos=54.8% (count=107)
+  small: defend=39.8% (combos 536/1326), 3bet share 9.8% (3bet combos 52), call#=77, raise#=9, overlap=2.4%
+  mid: defend=28.5% (combos 378/1326), 3bet share 11.1% (3bet combos 42), call#=46, raise#=7, overlap=0.0%
+  large: defend=13.9% (combos 184/1326), 3bet share 15.2% (3bet combos 28), call#=27, raise#=4, overlap=0.0%
+
+[boundary] SB open_to=4.0bb, hand=KQo, bucket=mid → medium=OK, tight=OK
+[boundary] SB open_to=4.5bb, hand=ATs, bucket=large → medium=BAD, tight=BAD
+[units] open_to=4.0 → to_call_bb=3.0, pot_odds=0.3750
+[units] open_to=4.5 → to_call_bb=3.5, pot_odds=0.3889
+
+[samples] no sample file (set SUGGEST_DEBUG_SAMPLES=/path/to/jsonl)
+
+All checks passed.
+
+JSON Output:
+{
+  "baseDir": "packages/poker_core/suggest/config",
+  "results": {
+    "loose": {
+      "rfi": {
+        "grid_pct": 0.8520710059171598,
+        "combos_pct": 0.7858220211161387,
+        "sb_count": 144,
+        "combos": 1042,
+        "invalid": [],
+        "dups": []
+      },
+      "defend": {
+        "small": {
+          "defend_pct": 0.5444947209653092,
+          "threebet_share": 0.1523545706371191,
+          "call_count": 99,
+          "raise_count": 19,
+          "call_combos": 678,
+          "raise_combos": 110,
+          "overlap_pct": 0.11320754716981132,
+          "overlap_count": 12,
+          "union_count": 106,
+          "overlap_examples": [
+            "TT",
+            "A5s",
+            "A4s",
+            "A3s",
+            "A2s",
+            "KQs",
+            "KTs",
+            "K9s"
+          ],
+          "invalid": [],
+          "_call": {},
+          "_raise": {}
+        },
+        "mid": {
+          "defend_pct": 0.39819004524886875,
+          "threebet_share": 0.11363636363636363,
+          "call_count": 77,
+          "raise_count": 11,
+          "call_combos": 484,
+          "raise_combos": 60,
+          "overlap_pct": 0.047619047619047616,
+          "overlap_count": 4,
+          "union_count": 84,
+          "overlap_examples": [
+            "A5s",
+            "KQs",
+            "KTs",
+            "Q9s"
+          ],
+          "invalid": [],
+          "_call": {},
+          "_raise": {}
+        },
+        "large": {
+          "defend_pct": 0.2790346907993967,
+          "threebet_share": 0.0918918918918919,
+          "call_count": 46,
+          "raise_count": 5,
+          "call_combos": 336,
+          "raise_combos": 34,
+          "overlap_pct": 0,
+          "overlap_count": 0,
+          "union_count": 51,
+          "overlap_examples": [],
+          "invalid": [],
+          "_call": {},
+          "_raise": {}
+        }
+      }
+    },
+    "medium": {
+      "rfi": {
+        "grid_pct": 0.7218934911242604,
+        "combos_pct": 0.6530920060331825,
+        "sb_count": 122,
+        "combos": 866,
+        "invalid": [],
+        "dups": []
+      },
+      "defend": {
+        "small": {
+          "defend_pct": 0.5082956259426847,
+          "threebet_share": 0.12166172106824925,
+          "call_count": 95,
+          "raise_count": 16,
+          "call_combos": 630,
+          "raise_combos": 82,
+          "overlap_pct": 0.08823529411764706,
+          "overlap_count": 9,
+          "union_count": 102,
+          "overlap_examples": [
+            "TT",
+            "A5s",
+            "A4s",
+            "A3s",
+            "KQs",
+            "KTs",
+            "K9s",
+            "Q9s"
+          ],
+          "invalid": [],
+          "_call": {},
+          "_raise": {}
+        },
+        "mid": {
+          "defend_pct": 0.39819004524886875,
+          "threebet_share": 0.11363636363636363,
+          "call_count": 77,
+          "raise_count": 11,
+          "call_combos": 484,
+          "raise_combos": 60,
+          "overlap_pct": 0.047619047619047616,
+          "overlap_count": 4,
+          "union_count": 84,
+          "overlap_examples": [
+            "A5s",
+            "KQs",
+            "KTs",
+            "Q9s"
+          ],
+          "invalid": [],
+          "_call": {},
+          "_raise": {}
+        },
+        "large": {
+          "defend_pct": 0.2790346907993967,
+          "threebet_share": 0.0918918918918919,
+          "call_count": 46,
+          "raise_count": 5,
+          "call_combos": 336,
+          "raise_combos": 34,
+          "overlap_pct": 0,
+          "overlap_count": 0,
+          "union_count": 51,
+          "overlap_examples": [],
+          "invalid": [],
+          "_call": {},
+          "_raise": {}
+        }
+      }
+    },
+    "tight": {
+      "rfi": {
+        "grid_pct": 0.6331360946745562,
+        "combos_pct": 0.5475113122171946,
+        "sb_count": 107,
+        "combos": 726,
+        "invalid": [],
+        "dups": []
+      },
+      "defend": {
+        "small": {
+          "defend_pct": 0.39819004524886875,
+          "threebet_share": 0.09848484848484848,
+          "call_count": 77,
+          "raise_count": 9,
+          "call_combos": 484,
+          "raise_combos": 52,
+          "overlap_pct": 0.023809523809523808,
+          "overlap_count": 2,
+          "union_count": 84,
+          "overlap_examples": [
+            "A5s",
+            "KQs"
+          ],
+          "invalid": [],
+          "_call": {},
+          "_raise": {}
+        },
+        "mid": {
+          "defend_pct": 0.2850678733031674,
+          "threebet_share": 0.1111111111111111,
+          "call_count": 46,
+          "raise_count": 7,
+          "call_combos": 336,
+          "raise_combos": 42,
+          "overlap_pct": 0,
+          "overlap_count": 0,
+          "union_count": 53,
+          "overlap_examples": [],
+          "invalid": [],
+          "_call": {},
+          "_raise": {}
+        },
+        "large": {
+          "defend_pct": 0.138763197586727,
+          "threebet_share": 0.15217391304347827,
+          "call_count": 27,
+          "raise_count": 4,
+          "call_combos": 156,
+          "raise_combos": 28,
+          "overlap_pct": 0,
+          "overlap_count": 0,
+          "union_count": 31,
+          "overlap_examples": [],
+          "invalid": [],
+          "_call": {},
+          "_raise": {}
+        }
+      }
+    }
+  },
+  "bucketMonotonicErrors": {
+    "loose": [],
+    "medium": [],
+    "tight": []
+  },
+  "stratMonotonicErrors": [],
+  "fails": []
+}

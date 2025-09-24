@@ -39,11 +39,7 @@ def _warn_missing_defaults_once(data: dict[str, Any], ver: int, strategy: str) -
         return
     try:
         log = logging.getLogger(__name__)
-        pot_types = [
-            k
-            for k in (data or {}).keys()
-            if k in ("single_raised", "limped", "threebet")
-        ]
+        pot_types = [k for k in (data or {}).keys() if k in ("single_raised", "limped", "threebet")]
         missing: list[str] = []
         for pt in pot_types:
             role_node = (data or {}).get(pt, {}).get("role", {}) or {}

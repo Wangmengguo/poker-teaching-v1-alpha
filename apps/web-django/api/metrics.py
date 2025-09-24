@@ -51,23 +51,17 @@ try:
     API_LATENCY = _get_or_create_hist(
         "api_latency_seconds", "API latency", ["route", "method", "status"]
     )
-    API_ERRORS = _get_or_create_counter(
-        "api_errors_total", "API errors", ["route", "kind"]
-    )
+    API_ERRORS = _get_or_create_counter("api_errors_total", "API errors", ["route", "kind"])
 
     # --- Suggest API 封装 ---
     def observe_latency(policy: str, street: str | None, seconds: float):
-        SUGGEST_LATENCY.labels(policy or "unknown", street or "unknown").observe(
-            seconds
-        )
+        SUGGEST_LATENCY.labels(policy or "unknown", street or "unknown").observe(seconds)
 
     def inc_error(err_type: str, street: str | None = None):
         SUGGEST_ERRORS.labels(err_type or "unknown", street or "unknown").inc()
 
     def inc_action(policy: str, action: str, street: str | None = None):
-        SUGGEST_ACTION.labels(
-            policy or "unknown", street or "unknown", action or "unknown"
-        ).inc()
+        SUGGEST_ACTION.labels(policy or "unknown", street or "unknown", action or "unknown").inc()
 
     def inc_clamped(policy: str, street: str | None = None):
         SUGGEST_CLAMPED.labels(policy or "unknown", street or "unknown").inc()
@@ -77,9 +71,7 @@ try:
 
     # --- API 通用封装 ---
     def observe_request(route: str, method: str, status: str, seconds: float):
-        API_LATENCY.labels(
-            route or "unknown", method or "GET", status or "200"
-        ).observe(seconds)
+        API_LATENCY.labels(route or "unknown", method or "GET", status or "200").observe(seconds)
 
     def inc_api_error(route: str, kind: str):
         API_ERRORS.labels(route or "unknown", kind or "unknown").inc()
@@ -92,9 +84,7 @@ try:
     SESSION_STARTS = _get_or_create_counter(
         "session_starts_total", "Session creation count", ["status"]
     )
-    HAND_STARTS = _get_or_create_counter(
-        "hand_starts_total", "Hand creation count", ["status"]
-    )
+    HAND_STARTS = _get_or_create_counter("hand_starts_total", "Hand creation count", ["status"])
     HAND_ACTIONS = _get_or_create_counter(
         "hand_actions_total", "Hand actions count", ["action", "street"]
     )

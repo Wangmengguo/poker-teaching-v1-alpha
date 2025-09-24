@@ -69,7 +69,7 @@ class Decision:
 
         kind = self.sizing.kind
         acts_list = list(acts or [])
-
+        amount: int | None = None
         if kind == "amount":
             amount = int(self.sizing.value)
         elif kind == "bb":
@@ -84,7 +84,7 @@ class Decision:
                     last_bet=int(getattr(obs, "last_bet", 0) or 0),
                     size_tag=str(self.sizing.value),
                     bb=int(obs.bb or 1),
-                    eff_stack=None,
+                    eff_stack=0,
                     cap_ratio=cap_ratio,
                 )
             else:

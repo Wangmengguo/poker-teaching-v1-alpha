@@ -36,9 +36,7 @@ def _validate_size_tag(obj: Any, path: str, errors: list[str]) -> None:
                 errors.append(f"invalid size_tag at {path}: {st}")
 
 
-def _validate_facing(
-    obj: Any, path: str, errors: list[str], warnings: list[str]
-) -> None:
+def _validate_facing(obj: Any, path: str, errors: list[str], warnings: list[str]) -> None:
     if not isinstance(obj, dict):
         return
     facing = obj.get("facing")
@@ -113,9 +111,7 @@ def validate_rules(data: dict[str, Any]) -> list[str]:
                     for k, v in snode.items():
                         _validate_size_tag(v, f"{role}.{pos}.{tex}.{spr}.{k}", errors)
                         if k == "value_two_pair_plus":
-                            _validate_facing(
-                                v, f"{role}.{pos}.{tex}.{spr}.{k}", errors, warnings
-                            )
+                            _validate_facing(v, f"{role}.{pos}.{tex}.{spr}.{k}", errors, warnings)
     # print warnings as JSON once
     if warnings:
         print(
@@ -188,12 +184,7 @@ def main() -> int:
             d: dict[str, Any], role: str, pos: str, tex: str, spr: str, cls: str
         ) -> str | None:
             try:
-                node = (
-                    d.get("single_raised", {})
-                    .get("role", {})
-                    .get(role, {})
-                    .get(pos, {})
-                )
+                node = d.get("single_raised", {}).get("role", {}).get(role, {}).get(pos, {})
                 # texture level
                 tn = node.get(tex) or {}
                 # fallback defaults at texture when needed

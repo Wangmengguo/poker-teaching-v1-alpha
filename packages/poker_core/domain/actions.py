@@ -92,16 +92,16 @@ def legal_actions_struct(gs) -> list[LegalAction]:
 
     for a in str_acts:
         if a in ("fold", "check"):
-            result.append(LegalAction(action=a))
+            result.append(LegalAction(action=a))  # type: ignore
         elif a == "call":
             result.append(LegalAction(action="call", to_call=max(0, int(to_call_val or 0))))
         elif a in ("bet", "raise"):
             lo = max(1, bb)
             hi = actor_stack
-            min_amt = _binary_search_min(gs, a, lo, hi)
-            max_amt = _binary_search_max(gs, a, lo, hi)
+            min_amt = _binary_search_min(gs, a, lo, hi)  # type: ignore
+            max_amt = _binary_search_max(gs, a, lo, hi)  # type: ignore
             if min_amt is not None and max_amt is not None and min_amt <= max_amt:
-                result.append(LegalAction(action=a, min=min_amt, max=max_amt))
+                result.append(LegalAction(action=a, min=min_amt, max=max_amt))  # type: ignore
         elif a == "allin":
             result.append(LegalAction(action="allin", min=actor_stack, max=actor_stack))
         else:

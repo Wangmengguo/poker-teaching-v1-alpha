@@ -45,7 +45,7 @@ class Strength:
 class EvaluationError(Exception):
     """评估器统一异常类型"""
 
-    def __init__(self, error_type: str, detail: Any = None, original: str = None):
+    def __init__(self, error_type: str, detail: Any = None, original: str | None = None):
         self.error_type = error_type
         self.detail = detail
         self.original = original
