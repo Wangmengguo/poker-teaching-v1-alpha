@@ -1,0 +1,12 @@
+{% comment %} Replace whole action form when hand id changes {% endcomment %}
+<form id="action-form" hx-swap-oob="outerHTML"
+      class="flex items-center gap-2"
+      hx-post="/api/v1/ui/hand/{{ hand_id }}/act"
+      hx-swap="none"
+      hx-indicator="#act-indicator"
+      hx-include="#amount-wrap">
+  {% csrf_token %}
+  {% include "ui/_actions.html" with actions=actions ended=ended session_id=session_id replay_url=replay_url only %}
+  {% include "ui/_amount.html" with amount=actions.amount only %}
+  <div id="act-indicator" class="htmx-indicator text-xs text-[rgb(var(--muted))] ml-2">Sending…</div>
+</form>

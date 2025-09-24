@@ -1,0 +1,11 @@
+{
+  "codes": [],
+  "meta": {
+    "rule_path": "single_raised/role/caller/oop/dry/defaults:ge6",
+    "size_tag": "third"
+  },
+  "policy": "river_v1",
+  "suggested": {
+    "action": "check"
+  }
+}

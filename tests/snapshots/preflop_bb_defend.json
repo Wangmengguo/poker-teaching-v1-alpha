@@ -1,0 +1,15 @@
+{
+  "codes": [
+    "PF_DEFEND_3BET"
+  ],
+  "meta": {
+    "bucket": "small",
+    "reraise_to_bb": 8,
+    "plan": "若遭四bet 默认弃牌；仅 QQ+/AK 继续。"
+  },
+  "policy": "preflop_v1",
+  "suggested": {
+    "action": "raise",
+    "amount": 400
+  }
+}

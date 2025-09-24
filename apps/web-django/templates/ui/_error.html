@@ -1,0 +1,4 @@
+{% comment %} OOB error banner (unified) {% endcomment %}
+<div id="global-error" hx-swap-oob="outerHTML" class="{% if not text %}hidden{% endif %} bg-[rgb(var(--danger))]/10 border border-[rgb(var(--danger))]/30 text-[rgb(var(--danger))] rounded-xl px-3 py-2 text-sm">
+  {% if text %}⚠️ {{ text }}{% endif %}
+</div>

@@ -1,0 +1,25 @@
+{
+  "PF_OPEN_RANGE_HIT": "首入范围命中：按 {open_bb:.1f}bb 开局。",
+  "PF_DEFEND_PRICE_OK": "锅赔率 {pot_odds:.2f} ≤ 阈值 {thr:.2f}（{bucket}）→ 跟注/继续防守。",
+  "PF_DEFEND_PRICE_BAD": "锅赔率 {pot_odds:.2f} ＞ 阈值 {thr:.2f}（{bucket}）→ 收紧/弃牌。",
+  "PF_DEFEND_3BET": "范围命中（{bucket}）：选择 3-bet。",
+  "PF_ATTACK_4BET": "面对 3-bet（{bucket}/{threebet_to_bb:.1f}bb）：执行 4-bet（目标至 {fourbet_to_bb}bb）。",
+  "PF_LIMP_COMPLETE_BLIND": "未命中 RFI：低价补盲（limp）。",
+
+  "FL_RANGE_ADV_SMALL_BET": "范围优势：偏小尺度持续下注（约 1/3 彩池）。",
+  "FL_DRY_CBET_THIRD": "干燥牌面：偏小尺度持续下注（约 1/3 彩池）。",
+  "FL_NUT_ADV_POLAR": "坚果优势：采用极化与较大尺度（2/3–POT）。",
+  "FL_MDF_DEFEND": "MDF {mdf:.2f}；锅赔率 {pot_odds:.2f}；对手下注 {facing}。",
+  "FL_RAISE_VALUE": "价值加注（对手下注较小）。",
+  "FL_RAISE_SEMI_BLUFF": "强听牌可半诈唬加注。",
+  "FL_CHECK_RANGE": "不在下注范围，选择过牌。",
+  "FL_DELAYED_CBET_PLAN": "计划：当前过牌，转牌争取延迟 c-bet。",
+
+  "PL_PROBE_BET": "{street} 无人下注线：以最小尺寸试探性下注。",
+
+  "FL_MIN_REOPEN_ADJUSTED": "已提升到最小合法再加注金额。",
+  "W_CLAMPED": "建议金额 {given} 超出合法区间 [{min},{max}]，已调整为 {chosen}。",
+  "CFG_FALLBACK_USED": "配置不可用/未命中：使用保守回退。",
+  "SAFE_CHECK": "异常局面：回退为过牌。"
+}
+

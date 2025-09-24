@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Poker Teaching — Hand Replay</title>
+    <script src="/static/vendor/tailwind/tailwindcss.min.js"></script>
+    <script>tailwind.config={theme:{extend:{boxShadow:{elevated:"0 4px 16px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04)"}}}};</script>
+    <style>
+      :root{
+        --bg:248 249 251;
+        --surface:255 255 255;
+        --text:17 24 39;
+        --muted:113 113 122;
+        --border:228 228 231;
+        --ring:226 232 240;
+        --brand-600:79 70 229;
+        --action:var(--brand-600);
+        --info:59 130 246;
+        /* Card dimensions */
+        --card-sm: clamp(52px, 6.0vw, 64px);
+        --card-md: clamp(60px, 7.2vw, 80px);
+        --card-lg: clamp(72px, 9.0vw, 96px);
+
+        /* Layout spacing */
+        --board-gap: clamp(8px, 1.2vw, 12px);
+        --hole-overlap: clamp(-12px, -1.4vw, -8px);
+        --dealer-offset: clamp(-8px, -1vw, -12px);
+      }
+      [data-theme="dark"]{
+        --bg:17 17 19;
+        --surface:24 24 27;
+        --text:244 244 245;
+        --muted:161 161 170;
+        --border:63 63 70;
+        --ring:63 63 70;
+        --brand-600:99 102 241;
+        --action:var(--brand-600);
+        --info:96 165 250;
+      }
+    </style>
+    <style type="text/tailwindcss">
+      @layer components{
+        .card{@apply bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl shadow-sm}
+        .btn{@apply inline-flex items-center justify-center gap-2 rounded-xl h-11 px-4 font-medium transition active:scale-[.98] select-none disabled:opacity-50 disabled:cursor-not-allowed}
+        .btn-primary{@apply text-white shadow; background-color:rgb(var(--action))}
+        .btn-primary:hover{filter:brightness(.95)}
+        .btn-ghost{@apply border border-[rgb(var(--border))] bg-transparent text-[rgb(var(--text))]}
+        .stat-label{@apply text-xs uppercase tracking-wide text-[rgb(var(--muted))]}
+        .stat-value{@apply text-sm font-semibold text-[rgb(var(--text))]}
+        .chip{@apply text-xs font-semibold px-2.5 py-1 rounded-full border border-[rgb(var(--border))] bg-[rgb(var(--surface))]}
+        .divider{@apply h-px bg-[rgb(var(--border))]}
+      }
+      .row-current{background:rgba(99,102,241,.08)}
+      .card-red{color:#dc2626}
+      .card-black{color:rgb(var(--text))}
+
+      /* 静态蓝色光晕效果 - 当前行动者指示 */
+      .avatar-glow {
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.4);
+        border: 2px solid rgb(79, 70, 229);
+      }
+
+      /* Hole cards container - 优化重叠实现 */
+      .hole-cards-container playing-card:nth-child(2) {
+        margin-left: var(--hole-overlap);
+      }
+
+      /* Seat card alignment improvements */
+      .seat-card {
+        box-sizing: border-box;
+        align-items: center;
+      }
+
+      .seat-card > div:first-child {
+        flex-shrink: 0;
+      }
+
+      .seat-card > div:nth-child(2) {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .seat-card > div:last-child {
+        flex-shrink: 0;
+      }
+
+      /* 响应式布局样式 */
+      .responsive-layout {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        min-height: 100vh;
+        max-width: min(1200px, 90vw);
+        margin: 0 auto;
+        padding: 0 clamp(1rem, 4vw, 2rem);
+        gap: clamp(0.5rem, 4vh, 3rem);
+      }
+
+      .responsive-layout main {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: clamp(0.5rem, 0.5vh, 4rem) 0;
+      }
+
+      .responsive-layout header,
+      .responsive-layout footer {
+        position: sticky;
+        backdrop-filter: blur(8px);
+      }
+
+      .responsive-layout header {
+        top: 0;
+        z-index: 40;
+      }
+
+      .responsive-layout footer {
+        bottom: 0;
+        z-index: 40;
+      }
+
+      /* 优化扑克桌面的响应式表现 */
+      .responsive-layout #table-card {
+        width: 100%;
+        max-width: 1000px;
+        aspect-ratio: 16 / 10;
+        margin: 0 auto;
+      }
+
+      /* 在小屏幕上调整table-card的尺寸 */
+      @media (max-width: 768px) {
+        .responsive-layout #table-card {
+          max-width: 95vw;
+          aspect-ratio: 16 / 10;
+        }
+      }
+
+      /* 在中等屏幕上优化 */
+      @media (min-width: 769px) and (max-width: 1200px) {
+        .responsive-layout #table-card {
+          max-width: min(70vw, 800px);
+        }
+      }
+
+      /* 在大屏幕上保持最大尺寸 */
+      @media (min-width: 1201px) {
+        .responsive-layout #table-card {
+          max-width: 800px;
+        }
+      }
+    </style>
+
+    <!-- Theme toggle styles -->
+    <link rel="stylesheet" href="/static/css/theme-toggle.css">
+  </head>
+  <body class="min-h-screen bg-[rgb(var(--bg))] text-[rgb(var(--text))] antialiased">
+    <div class="responsive-layout">
+      <header class="sticky top-0 z-40 -mx-4 lg:-mx-6 px-4 lg:px-6 py-3 bg-[rgb(var(--bg))]/80 backdrop-blur border-b border-[rgb(var(--border))]">
+        <div class="max-w-6xl mx-auto flex items-center justify-between gap-3">
+          <div class="flex items-center gap-4">
+            <div class="text-lg font-semibold">Hand Replay</div>
+            <div class="chip">{{ hand_id }}</div>
+            <div class="w-px h-8 bg-[rgb(var(--border))]"></div>
+            <div class="text-sm"><div class="stat-label">Blinds</div><div class="stat-value" id="hud-blinds">—</div></div>
+            <div class="w-px h-8 bg-[rgb(var(--border))]"></div>
+            <div class="text-sm"><div class="stat-label">Pot</div><div class="stat-value" id="hud-pot">0</div></div>
+          </div>
+
+          {% include "ui/_theme_toggle.html" %}
+        </div>
+      </header>
+
+      <main class="space-y-4" aria-label="Replay Table">
+        <section class="card p-4 relative aspect-[16/10] overflow-hidden shadow-elevated" id="table-card">
+          <div class="absolute inset-0 grid place-items-center pointer-events-none">
+            <div class="flex flex-col items-center">
+              <div id="board" class="flex items-center gap-2">
+                <playing-card cid="?" style="width: var(--card-md)" suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F" backcolor="#0B0B0F"></playing-card>
+                <playing-card cid="?" style="width: var(--card-md)" suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F" backcolor="#0B0B0F"></playing-card>
+                <playing-card cid="?" style="width: var(--card-md)" suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F" backcolor="#0B0B0F"></playing-card>
+                <playing-card cid="?" style="width: var(--card-md)" suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F" backcolor="#0B0B0F"></playing-card>
+                <playing-card cid="?" style="width: var(--card-md)" suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F" backcolor="#0B0B0F"></playing-card>
+              </div>
+              <div class="mt-3 chip" id="chip-pot">Pot 0</div>
+            </div>
+          </div>
+
+          <div class="absolute inset-x-4 top-4 flex items-center justify-center">
+            <div class="seat-card inline-flex items-center gap-3 card px-3 py-2" style="min-width: 320px; max-width: 400px;">
+              <div class="w-7 h-7 rounded-full bg-[rgb(var(--border))] flex items-center justify-center" id="opponent-avatar">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[rgb(var(--muted))]">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M12 6l4 6l5 -4l-2 10h-14l-2 -10l5 4z" />
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-sm font-medium">Opponent</div>
+                <div class="text-xs text-[rgb(var(--muted))]">Bet <span id="opp-bet">0</span></div>
+              </div>
+              <div class="relative">
+                <div class="flex items-center hole-cards-container">
+                  <playing-card id="opp-1" cid="?" style="width: var(--card-md)" suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F" backcolor="#0B0B0F"></playing-card>
+                  <playing-card id="opp-2" cid="?" style="width: var(--card-md); margin-left: var(--hole-overlap)" suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F" backcolor="#0B0B0F"></playing-card>
+                </div>
+                <span class="chip absolute" id="dealer-opp" hidden style="top: var(--dealer-offset); right: var(--dealer-offset);">D</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="absolute inset-x-4 bottom-4 flex items-center justify-center">
+            <div class="seat-card inline-flex items-center gap-3 card px-3 py-2" style="min-width: 320px; max-width: 400px;">
+              <div class="w-7 h-7 rounded-full bg-[rgb(var(--border))] flex items-center justify-center" id="player-avatar">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="text-[rgb(var(--muted))]">
+                  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                  <path d="M17.108 22.085c-1.266 -.068 -2.924 -.859 -5.071 -2.355l-.04 -.027l-.037 .027c-2.147 1.497 -3.804 2.288 -5.072 2.356l-.178 .005c-2.747 0 -3.097 -2.64 -1.718 -7.244l.054 -.178l-.1 -.075c-6.056 -4.638 -5.046 -7.848 2.554 -8.066l.202 -.005l.115 -.326c1.184 -3.33 2.426 -5.085 4.027 -5.192l.156 -.005c1.674 0 2.957 1.76 4.182 5.197l.114 .326l.204 .005c7.6 .218 8.61 3.428 2.553 8.065l-.102 .075l.055 .178c1.35 4.512 1.04 7.137 -1.556 7.24l-.163 .003z" />
+                </svg>
+              </div>
+              <div class="flex-1">
+                <div class="text-sm font-semibold">You</div>
+                <div class="text-xs text-[rgb(var(--muted))]">Bet <span id="you-bet">0</span></div>
+              </div>
+              <div class="relative">
+                <div class="flex items-center hole-cards-container">
+                  <playing-card id="you-1" cid="?" style="width: var(--card-md)" suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F" backcolor="#0B0B0F"></playing-card>
+                  <playing-card id="you-2" cid="?" style="width: var(--card-md); margin-left: var(--hole-overlap)" suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F" backcolor="#0B0B0F"></playing-card>
+                </div>
+                <span class="chip absolute" id="dealer-you" hidden style="top: var(--dealer-offset); right: var(--dealer-offset);">D</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="absolute right-3 bottom-3 w-56 flex flex-col gap-2 items-stretch">
+            <div id="outcome-wrap" class="card p-2 text-sm" hidden>
+              <div class="text-sm font-semibold text-center">Result</div>
+              <div class="mt-1 text-sm text-center" id="outcome-text">—</div>
+            </div>
+            <div class="card p-3 text-sm action-log-card">
+              <div class="stat-label">Action Log</div>
+              <div id="action-log" class="mt-1 space-y-1 max-h-24 overflow-auto pr-1"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="sticky bottom-0 z-40 -mx-4 lg:-mx-6 px-4 lg:px-6 py-3 bg-[rgb(var(--surface))]/95 backdrop-blur border-t border-[rgb(var(--border))]">
+        <div class="max-w-6xl mx-auto flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <button id="btn-restart" class="btn btn-ghost" accesskey="b">Reset</button>
+            <button id="btn-prev" class="btn btn-ghost" accesskey="j">◀ Prev</button>
+            <button id="btn-next" class="btn btn-ghost" accesskey="l">▶ Next</button>
+            <button id="btn-play" class="btn btn-ghost" accesskey="k">▷ Play</button>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="chip" id="street-chip">Preflop</div>
+            <div class="chip" id="step-chip">1 / 0</div>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <script>
+      // 安全的 JSON 解析，防止数据未定义时的错误
+      try {
+        window.__REPLAY__ = JSON.parse('{{ replay_json|safe|escapejs }}');
+      } catch (e) {
+        console.error('Failed to parse replay data:', e);
+        window.__REPLAY__ = {};
+      }
+
+      (function(){
+        const R = window.__REPLAY__ || {};
+        const $ = s=>document.querySelector(s);
+        const $$ = s=>Array.from(document.querySelectorAll(s));
+
+        // 盲注信息 - 使用默认值，因为后端数据中可能没有
+        $('#hud-blinds').textContent = 'SB 1 / BB 2';
+
+        const potHud = $('#hud-pot'); const potChip = $('#chip-pot');
+
+        // 从 players 数据中提取手牌信息
+        const players = R.players || [];
+        const you = players[0]?.hole || [];
+        const opp = players[1]?.hole || [];
+
+        // 设置庄位标识
+        const button = R.button || 0;
+        const dealerOpp = $('#dealer-opp');
+        const dealerYou = $('#dealer-you');
+        if (button === 1) {
+          dealerOpp.hidden = false;
+          dealerYou.hidden = true;
+        } else {
+          dealerOpp.hidden = true;
+          dealerYou.hidden = false;
+        }
+
+        function setCardText(element, card) {
+          if (!card) return;
+          element.textContent = card;
+          // 根据花色设置颜色
+          const suit = card[1];
+          if (suit === '♥' || suit === '♦') {
+            element.classList.add('card-red');
+            element.classList.remove('card-black');
+          } else {
+            element.classList.add('card-black');
+            element.classList.remove('card-red');
+          }
+        }
+
+        // 设置手牌 - 同时设置 cid 属性和文本内容
+        if(you[0]) {
+          const you1El = document.getElementById('you-1');
+          if(you1El) {
+            you1El.setAttribute('cid', you[0]);
+            you1El.textContent = you[0];
+            // 根据花色设置颜色
+            const suit = you[0][1];
+            if (suit === '♥' || suit === '♦') {
+              you1El.classList.add('card-red');
+              you1El.classList.remove('card-black');
+            } else {
+              you1El.classList.add('card-black');
+              you1El.classList.remove('card-red');
+            }
+          }
+        }
+        if(you[1]) {
+          const you2El = document.getElementById('you-2');
+          if(you2El) {
+            you2El.setAttribute('cid', you[1]);
+            you2El.textContent = you[1];
+            // 根据花色设置颜色
+            const suit = you[1][1];
+            if (suit === '♥' || suit === '♦') {
+              you2El.classList.add('card-red');
+              you2El.classList.remove('card-black');
+            } else {
+              you2El.classList.add('card-black');
+              you2El.classList.remove('card-red');
+            }
+          }
+        }
+        if(opp[0]) {
+          const opp1El = document.getElementById('opp-1');
+          if(opp1El) {
+            opp1El.setAttribute('cid', opp[0]);
+            opp1El.textContent = opp[0];
+            // 根据花色设置颜色
+            const suit = opp[0][1];
+            if (suit === '♥' || suit === '♦') {
+              opp1El.classList.add('card-red');
+              opp1El.classList.remove('card-black');
+            } else {
+              opp1El.classList.add('card-black');
+              opp1El.classList.remove('card-red');
+            }
+          }
+        }
+        if(opp[1]) {
+          const opp2El = document.getElementById('opp-2');
+          if(opp2El) {
+            opp2El.setAttribute('cid', opp[1]);
+            opp2El.textContent = opp[1];
+            // 根据花色设置颜色
+            const suit = opp[1][1];
+            if (suit === '♥' || suit === '♦') {
+              opp2El.classList.add('card-red');
+              opp2El.classList.remove('card-black');
+            } else {
+              opp2El.classList.add('card-black');
+              opp2El.classList.remove('card-red');
+            }
+          }
+        }
+
+        // 初始化bet显示
+        try{ $('#you-bet').textContent = '0'; }catch(e){}
+        try{ $('#opp-bet').textContent = '0'; }catch(e){}
+
+        // 动态bet计算函数
+        function calculateCurrentBets(stepIndex) {
+          const bets = { you: 0, opponent: 0 };
+
+          // 遍历到当前步骤的所有事件，累积投注金额
+          for (let j = 0; j <= stepIndex; j++) {
+            const step = A[j];
+            if (step && step.amt && typeof step.amt === 'number') {
+              // 包含所有投注类动作：盲注、投注、加注、跟注、全押
+              if (['blind', 'bet', 'raise', 'call', 'allin'].includes(step.move)) {
+                if (step.actor === 'you') {
+                  bets.you += step.amt;
+                } else if (step.actor === 'opponent') {
+                  bets.opponent += step.amt;
+                }
+              }
+            }
+          }
+
+          return bets;
+        }
+
+        // 更新bet显示
+        function updateBetDisplay(stepIndex) {
+          const bets = calculateCurrentBets(stepIndex);
+          try {
+            $('#you-bet').textContent = bets.you;
+            $('#opp-bet').textContent = bets.opponent;
+          } catch(e) {
+            console.warn('Failed to update bet display:', e);
+          }
+        }
+
+        const boardSlots = $$('#board playing-card');
+        function setBoardAttr(k, cid){ if(boardSlots[k]) boardSlots[k].setAttribute('cid', cid && cid !== '?' ? cid : '?'); }
+        function setBoard(k, cid){
+          if(boardSlots[k]) {
+            const element = boardSlots[k];
+            if (cid && cid !== '?') {
+              // 显示实际牌面
+              element.textContent = cid;
+              // 根据花色设置颜色
+              const suit = cid[1];
+              if (suit === '♥' || suit === '♦') {
+                element.classList.add('card-red');
+                element.classList.remove('card-black');
+              } else {
+                element.classList.add('card-black');
+                element.classList.remove('card-red');
+              }
+            } else {
+              // 显示牌背面图标
+              element.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-[rgb(var(--muted))]">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
+                <path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" />
+                <path d="M3 12h6" />
+                <path d="M15 12h6" />
+              </svg>`;
+              element.classList.remove('card-red', 'card-black');
+            }
+          }
+        }
+        function showOutcome(){
+          const out = $('#outcome-wrap');
+          if(R.winner==null){ out.hidden=true; return;}
+          const who=(R.winner===0?'You':'Opponent');
+          $('#outcome-text').innerHTML = `${who} wins`;
+          out.hidden=false;
+        }
+
+        // 从 events 数据构建 timeline
+        const events = R.events || [];
+        const A = events
+          .filter(event => {
+            // 引擎发牌事件：t:'board', street in ['flop','turn','river']
+            if (event.t === 'board' && ['flop','turn','river'].includes(event.street)) return true;
+            // 行动类事件
+            return ['blind', 'check', 'call', 'bet', 'raise', 'fold', 'allin'].includes(event.t);
+          })
+          .map(event => {
+            if (event.t === 'board') {
+              const move = event.street === 'flop' ? 'deal_flop' : (event.street === 'turn' ? 'deal_turn' : 'deal_river');
+              return { street: event.street[0].toUpperCase() + event.street.slice(1), actor: 'system', move, amt: null };
+            }
+            return { street: null, actor: (event.who === 0 ? 'you' : 'opponent'), move: event.t, amt: event.amt };
+          });
+        const logBox = $('#action-log');
+        const streetChip=$('#street-chip');
+        const stepChip=$('#step-chip');
+        let i=-1,total=A.length,pot=0,playing=false,timer=null;
+        stepChip.textContent = `${Math.max(i+1,1)} / ${total}`;
+
+        function lineText(a){
+          if (!a) return '—';
+          const who=a.actor==='you'?'You':(a.actor==='opponent'?'Opponent':'System');
+          return `${who} ${a.move}${(a.amt!=null?(' '+a.amt):'')}`;
+        }
+        function renderLog(){ logBox.innerHTML=''; A.forEach((a,idx)=>{ const row=document.createElement('div'); row.className='flex justify-between'; row.dataset.idx=idx; row.innerHTML = `<span class=\"text-[rgb(var(--muted))]\">${a.street||'—'}</span><span>${lineText(a)}</span>`; logBox.appendChild(row); }); }
+        renderLog();
+        function setStep(){ stepChip.textContent = `${Math.max(i+1,1)} / ${total}`; }
+        function setPot(){ potHud.textContent = pot; potChip.textContent = `Pot ${pot}`; }
+        function setStreet(s){ streetChip.textContent = s||'—'; }
+        function highlight(){
+          // 高亮当前行
+          logBox.querySelectorAll('[data-idx]').forEach(el=>el.classList.remove('row-current'));
+          if(i>=0){
+            const row = logBox.querySelector(`[data-idx=\"${i}\"]`);
+            row&&row.classList.add('row-current');
+            row&&row.scrollIntoView({block:'nearest'});
+          }
+
+          // 更新头像光晕
+          updateAvatarGlow();
+        }
+
+        function updateAvatarGlow(){
+          // 移除所有头像的光晕
+          const opponentAvatar = $('#opponent-avatar');
+          const playerAvatar = $('#player-avatar');
+          if(opponentAvatar) opponentAvatar.classList.remove('avatar-glow');
+          if(playerAvatar) playerAvatar.classList.remove('avatar-glow');
+
+          // 如果是有效的step，为当前行动者添加光晕
+          if(i >= 0 && i < A.length && A[i]){
+            const currentAction = A[i];
+            if(currentAction.actor === 'opponent' && opponentAvatar){
+              opponentAvatar.classList.add('avatar-glow');
+            } else if(currentAction.actor === 'you' && playerAvatar){
+              playerAvatar.classList.add('avatar-glow');
+            }
+          }
+        }
+        function apply(a){
+          if(!a) return;
+          if (a.street) setStreet(a.street);
+          if(typeof a.amt==='number') pot += a.amt;
+          if(a.move==='deal_flop' && R.board && R.board.length >= 3){
+            setBoardAttr(0, R.board[0]); setBoardAttr(1, R.board[1]); setBoardAttr(2, R.board[2]);
+          }
+          if(a.move==='deal_turn' && R.board && R.board.length >= 4){
+            setBoardAttr(3, R.board[3]);
+          }
+          if(a.move==='deal_river' && R.board && R.board.length >= 5){
+            setBoardAttr(4, R.board[4]);
+          }
+          setPot();
+          // 更新bet显示
+          updateBetDisplay(i);
+        }
+        function rollback(a){
+          if(!a) return;
+          if(typeof a.amt==='number') pot -= a.amt;
+          if(a.move==='deal_flop'){ setBoardAttr(0,'?'); setBoardAttr(1,'?'); setBoardAttr(2,'?'); }
+          if(a.move==='deal_turn'){ setBoardAttr(3,'?'); }
+          if(a.move==='deal_river'){ setBoardAttr(4,'?'); }
+          setPot();
+          // 更新bet显示
+          updateBetDisplay(i);
+        }
+        function next(){ if(i+1>=total) return; i++; apply(A[i]); setStep(); highlight(); }
+        function prev(){ if(i<0) return; rollback(A[i]); i--; setStep(); highlight(); }
+        function restart(){
+          while(i>=0){ rollback(A[i]); i--; }
+          pot=0;
+          // 重置bet显示
+          updateBetDisplay(-1);
+          setStep();
+          highlight();
+          setStreet('Preflop');
+        }
+        function setDisabled(d){ ['#btn-restart','#btn-prev','#btn-next'].forEach(sel=>{ const b=$(sel); if(b) b.disabled=d; }); }
+        function play(){ if(playing) return; playing=true; setDisabled(true); const btn=$('#btn-play'); if(btn) btn.textContent='❚❚ Pause'; timer=setInterval(()=>{ if(i+1>=total){ stop(); return;} next(); }, 650); }
+        function stop(){ playing=false; setDisabled(false); const btn=$('#btn-play'); if(btn) btn.textContent='▷ Play'; if(timer){clearInterval(timer); timer=null;} }
+        // 绑定按钮事件监听器
+        const btnNext = $('#btn-next');
+        const btnPrev = $('#btn-prev');
+        const btnRestart = $('#btn-restart');
+        const btnPlay = $('#btn-play');
+
+        if (btnNext) btnNext.addEventListener('click', next);
+        if (btnPrev) btnPrev.addEventListener('click', prev);
+        if (btnRestart) btnRestart.addEventListener('click', restart);
+        if (btnPlay) btnPlay.addEventListener('click', ()=> playing?stop():play());
+
+        // 键盘事件监听器
+        addEventListener('keydown',(e)=>{
+          if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+          const k=e.key.toLowerCase();
+          if(k==='l') next();
+          else if(k==='j') prev();
+          else if(k==='b') restart();
+          else if(k==='k') (playing?stop():play());
+        });
+
+        // 初始化状态
+        setPot(); setStep(); setStreet('Preflop'); showOutcome(); updateAvatarGlow();
+
+        // 调试信息
+        console.log('Replay initialized:', { total, R });
+
+      })();
+    </script>
+
+    <!-- Theme toggle JavaScript -->
+    <script src="/static/js/theme-toggle.js"></script>
+    <!-- CardMeister Web Component for card visuals -->
+    <script src="/static/vendor/cardmeister/elements.cardmeister.min.js"></script>
+  </body>
+</html>

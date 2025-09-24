@@ -1,0 +1,21 @@
+site_name: Poker Teaching (v0.4)
+site_description: Teaching-first Django scaffold for a Poker learning system
+nav:
+  - Overview: index.md
+  - Architecture: architecture.md
+  - Execution Plan (v0.3): execution_v0_3.md
+  - Execution Plan (v0.4): execution_v0_4.md
+  - Suggest v1:
+      - File Index: SUGGEST_FILE_INDEX.md
+      - Migration Guide: SUGGEST_MIGRATION_GUIDE.md
+  - ADR:
+      - ADR-001 Coverage thresholds: adr/ADR-001.md
+      - ADR-002 Replay reproducibility: adr/ADR-002.md
+  - Self Test: self_test_ci_and_slice.md
+theme:
+  name: mkdocs
+markdown_extensions:
+  - admonition
+  - footnotes
+  - toc:
+      permalink: true

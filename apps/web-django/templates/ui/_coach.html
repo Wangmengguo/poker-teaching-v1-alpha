@@ -1,0 +1,54 @@
+{% comment %} Coach suggest content (OOB) {% endcomment %}
+<div id="coach-panel" hx-swap-oob="innerHTML" class="space-y-2 text-sm">
+  {% if suggest %}
+    <div><span class="stat-label">Suggestion</span></div>
+    <div>
+      <span class="chip">{{ suggest.suggested.action|upper }}</span>
+      {% if suggest.suggested.amount %}<span class="chip">{{ suggest.suggested.amount }}</span>{% endif %}
+      {% if coach_v1 and suggest.meta.size_tag %}<span class="chip">{{ suggest.meta.size_tag }}</span>{% endif %}
+    </div>
+    {% if coach_v1 %}
+      {# MVP: one-liner plan with context; hide line when missing #}
+      {% if suggest.meta.plan %}
+        <div class="text-[rgb(var(--muted))]">
+          {% if suggest.debug.meta.role %}{{ suggest.debug.meta.role|upper }}{% elif suggest.meta.role %}{{ suggest.meta.role|upper }}{% else %}{% if suggest.meta.ip %}IP{% else %}OOP{% endif %}{% endif %}
+          · {{ suggest.debug.meta.board_texture|default:"" }} · SPR {{ suggest.debug.meta.spr_bucket|default:"" }}：
+          <span class="text-[rgb(var(--text))]">{{ suggest.meta.plan }}</span>
+          {% if suggest.meta.size_tag %}<span class="text-[rgb(var(--muted))]">（建议 {{ suggest.meta.size_tag }}）</span>{% endif %}
+        </div>
+      {% else %}
+        <div class="text-[rgb(var(--muted))] hidden" data-coach-plan-missing="1"></div>
+      {% endif %}
+      <div class="text-[rgb(var(--muted))]">
+        {% if suggest.debug.meta.pot_odds %}Pot Odds {{ suggest.debug.meta.pot_odds|floatformat:2 }}{% endif %}
+        {% if suggest.meta.mdf %} · MDF {{ suggest.meta.mdf|floatformat:2 }}{% endif %}
+      </div>
+
+      {# Preflop v1 MVP: render minimal meta without backend change #}
+      {% if suggest.is_preflop %}
+        <div class="mt-2 border-t border-[rgb(var(--border))] pt-2"></div>
+        {% if suggest.meta.open_bb %}
+          <div class="text-[rgb(var(--muted))]">RFI：SB 开局 {{ suggest.meta.open_bb }}x{% for r in suggest.rationale %}{% if r.code == 'PF_OPEN_RANGE_HIT' %}（命中范围）{% endif %}{% endfor %}</div>
+        {% endif %}
+        {% if suggest.meta.reraise_to_bb %}
+          <div class="text-[rgb(var(--muted))]">3bet 到 {{ suggest.meta.reraise_to_bb }}x{% if suggest.meta.bucket %}（{{ suggest.meta.bucket }} 桶）{% endif %}</div>
+        {% else %}
+          {% if suggest.suggested.action == 'call' and suggest.debug.meta.pot_odds %}
+            <div class="text-[rgb(var(--muted))]">Call（价格 {{ suggest.debug.meta.pot_odds|floatformat:2 }}）</div>
+          {% elif suggest.suggested.action == 'fold' %}
+            <div class="text-[rgb(var(--muted))]">Fold（价格不足/不满足 MDF）</div>
+          {% endif %}
+        {% endif %}
+      {% endif %}
+    {% endif %}
+    {% if suggest.rationale %}
+      <ul class="list-disc pl-5 text-[rgb(var(--muted))]">
+        {% for r in suggest.rationale %}
+          <li><span class="text-[rgb(var(--text))] font-medium">{{ r.code }}</span> — {{ r.msg }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  {% else %}
+    <div class="text-[rgb(var(--muted))]">No suggestion</div>
+  {% endif %}
+</div>

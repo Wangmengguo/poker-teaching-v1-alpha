@@ -1,0 +1,10 @@
+{% comment %} Amount input; visible only when bet/raise available {% endcomment %}
+<div id="amount-wrap" hx-swap-oob="outerHTML" class="ml-2 {% if not amount.show %}hidden{% endif %} lg:flex items-center gap-2">
+  {% if amount.show %}
+    {% with val=amount.default|default:amount.min %}
+      <input type="range" min="{{ amount.min }}" max="{{ amount.max }}" value="{{ val }}" step="{{ amount.step }}" name="amount" class="w-48 accent-[rgb(var(--action))]" />
+      <input type="number" name="amount" value="{{ val }}" min="{{ amount.min }}" max="{{ amount.max }}" step="{{ amount.step }}" class="w-24 h-11 px-3 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))]" />
+    {% endwith %}
+  {% endif %}
+</div>
+

@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Poker Teaching — Game UI</title>
+
+    <!-- Tailwind CDN (MVP 方便接入；生产建议本地构建) -->
+    <script src="/static/vendor/tailwind/tailwindcss.min.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            boxShadow: {
+              elevated:
+                "0 4px 16px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04)",
+            },
+          },
+        },
+      };
+    </script>
+
+    <!-- HTMX -->
+    <script src="/static/vendor/htmx/htmx.min.js"></script>
+    <script src="/static/vendor/htmx/json-enc.js"></script>
+
+    <!-- Design tokens: functional minimalism (avoid green) -->
+    <style>
+      :root {
+        /* Base tokens (RGB, 0-255) */
+        --bg: 248 249 251;
+        --surface: 255 255 255;
+        --text: 17 24 39;
+        --muted: 113 113 122;
+        --border: 228 228 231;
+        --ring: 226 232 240;
+
+        /* Brand/action color (unified action bar) */
+        --brand-500: 99 102 241; /* indigo-500 */
+        --brand-600: 79 70 229; /* indigo-600 */
+        --brand-700: 67 56 202; /* indigo-700 */
+        --action: var(--brand-600);
+
+        /* Feedback colors */
+        --info: 59 130 246; /* blue-500 */
+        --warn: 245 158 11; /* amber-500 */
+        --danger: 239 68 68; /* red-500 */
+
+        /* Card dimensions - 自适应 */
+        --card-sm: clamp(52px, 6.0vw, 64px); /* 洞牌（窄屏） */
+        --card-md: clamp(60px, 7.2vw, 80px); /* Board 默认 */
+        --card-lg: clamp(72px, 9.0vw, 96px); /* Hero/放大态 */
+
+        /* Layout spacing - 自适应 */
+        --board-gap: clamp(8px, 1.2vw, 12px); /* Board卡牌间距 */
+        --hole-overlap: clamp(-12px, -1.4vw, -8px); /* 洞牌重叠间距 */
+
+        /* Seat layout - 自适应 */
+        --seat-min-width: clamp(280px, 35vw, 320px); /* 角色栏最小宽度 */
+        --seat-max-width: clamp(320px, 45vw, 500px); /* 角色栏最大宽度 */
+        --seat-gap: clamp(12px, 2vw, 20px); /* 角色栏内容间距 */
+        --seat-spacer: clamp(20px, 3vw, 60px); /* 左右内容间距 - 优化版 */
+        --dealer-offset: clamp(-8px, -1vw, -12px); /* 庄家标志偏移 */
+      }
+
+      [data-theme="dark"] {
+        --bg: 17 17 19;
+        --surface: 24 24 27;
+        --text: 244 244 245;
+        --muted: 161 161 170;
+        --border: 63 63 70;
+        --ring: 63 63 70;
+        --brand-500: 129 140 248;
+        --brand-600: 99 102 241;
+        --brand-700: 79 70 229;
+        --action: var(--brand-600);
+        --info: 96 165 250;
+        --warn: 245 158 11;
+        --danger: 248 113 113;
+      }
+    </style>
+
+    <!-- Atomic components (for reuse) -->
+    <style type="text/tailwindcss">
+      @layer components {
+        .card {@apply bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl shadow-sm;} 
+        .btn {@apply inline-flex items-center justify-center gap-2 rounded-xl h-11 px-4 font-medium transition active:scale-[.98] select-none disabled:opacity-50 disabled:cursor-not-allowed;}
+        .btn-primary {@apply text-white shadow; background-color: rgb(var(--action));}
+        .btn-primary:hover {filter: brightness(0.95);}
+        .btn-ghost {@apply border border-[rgb(var(--border))] bg-transparent text-[rgb(var(--text))];}
+        .stat-label {@apply text-xs uppercase tracking-wide text-[rgb(var(--muted))];}
+        .stat-value {@apply text-sm font-semibold text-[rgb(var(--text))];}
+        .chip {@apply text-xs font-semibold px-2.5 py-1 rounded-full border border-[rgb(var(--border))] bg-[rgb(var(--surface))];}
+        .kbd {@apply text-[10px] px-1.5 py-0.5 rounded border border-[rgb(var(--border))] text-[rgb(var(--muted))];}
+        .divider {@apply h-px bg-[rgb(var(--border))];}
+      }
+    </style>
+
+    <!-- Theme toggle styles -->
+    <link rel="stylesheet" href="/static/css/theme-toggle.css">
+  </head>
+
+  <body class="min-h-screen bg-[rgb(var(--bg))] text-[rgb(var(--text))] antialiased">
+    <!-- Layout: table left + coach right -->
+    <div id="app-root" data-teach="{{ teach|yesno:'1,0' }}" class="layout-root mx-auto px-4 lg:px-6 grid gap-6 min-h-screen pb-safe" style="max-width: 900px;">
+      <!-- Top HUD (sticky) -->
+      <header
+        class="sticky top-0 z-40 -mx-4 lg:-mx-6 px-4 lg:px-6 py-3 bg-[rgb(var(--bg))]/80 backdrop-blur border-b border-[rgb(var(--border))]"
+        aria-label="Session HUD"
+      >
+        <div class="max-w-6xl mx-auto flex items-center justify-between gap-3">
+          <div class="flex items-center gap-4">
+            <div id="hud-root" class="text-sm">
+              <div class="stat-label">Blinds</div>
+              <div class="stat-value" id="hud-blinds">SB {{hud.sb}} / BB {{hud.bb}}</div>
+            </div>
+            <div class="w-px h-8 bg-[rgb(var(--border))]"></div>
+            <div class="text-sm">
+              <div class="stat-label">Pot</div>
+              <div class="stat-value" id="hud-pot">{{hud.pot}}</div>
+            </div>
+            <div class="w-px h-8 bg-[rgb(var(--border))]"></div>
+            <div class="text-sm">
+              <div class="stat-label">Hand</div>
+              <div class="stat-value" id="hud-hand">#{{hud.hand_no}}</div>
+            </div>
+            <div class="w-px h-8 bg-[rgb(var(--border))]"></div>
+            <div class="text-sm">
+              <div class="stat-label">TO ACT</div>
+              <div class="stat-value" id="hud-actor">{{hud.next_role}}</div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <div id="global-error" class="hidden"></div>
+            <div id="status-chip" class="chip hidden"></div>
+            {% include "ui/_teach_toggle.html" with teach=teach hand_id=hand_id session_id=session_id %}
+            {% include "ui/_theme_toggle.html" %}
+          </div>
+        </div>
+      </header>
+
+      <div id="aria-next" aria-live="polite" class="sr-only">{{hud.next_role}}</div>
+
+      <!-- Table area: simplified table layout -->
+      <main class="space-y-4" aria-label="Game Table">
+        <section class="card p-4 relative aspect-[16/10] overflow-hidden shadow-elevated" id="table-card">
+          <!-- Pot & community cards (center layer) -->
+          <div class="absolute inset-0 grid place-items-center pointer-events-none">
+            {% include "ui/_board.html" with st=st %}
+          </div>
+
+          {% include "ui/_seats.html" with st=st %}
+
+          <!-- Action Log (bottom-right) -->
+          <div class="absolute right-3 bottom-3 w-48 card p-3 text-sm action-log-card">
+            <div class="stat-label">Action Log</div>
+            {% include "ui/_log.html" with log=log %}
+          </div>
+        </section>
+      </main>
+
+      <!-- Right: Coach panel -->
+      <aside class="sticky top-[64px] self-start">
+        <details class="card overflow-hidden" open>
+          <summary class="list-none select-none cursor-pointer">
+            <div class="flex items-center justify-between gap-3 p-4">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-[rgb(var(--info))]"></div>
+                <div class="font-semibold">Coach</div>
+              </div>
+              <span class="text-xs text-[rgb(var(--muted))]">Expand details if needed</span>
+            </div>
+          </summary>
+          <div class="divider"></div>
+          <div class="p-4 space-y-3" id="coach-panel">
+            <div class="text-sm text-[rgb(var(--muted))]">Click “Get Suggestion” below</div>
+          </div>
+          <div class="px-4 pb-4" id="coach-trigger">
+            <button class="btn btn-ghost w-full" 
+                    hx-post="/api/v1/ui/coach/{{hand_id}}/suggest" 
+                    hx-vals='{"actor":0}'
+                    hx-headers='{"X-CSRFToken":"{{ csrf_token|escapejs }}"}'
+                    hx-swap="none">Get Suggestion</button>
+          </div>
+        </details>
+
+        <div class="mt-4 card p-4">
+          <div class="stat-label">Shortcuts</div>
+          <div class="mt-2 grid grid-cols-5 gap-1 text-sm">
+            <div class="flex items-center gap-1"><span class="kbd">F</span>Fold</div>
+            <div class="flex items-center gap-1"><span class="kbd">C</span>Call/Check</div>
+            <div class="flex items-center gap-1"><span class="kbd">B</span>Bet</div>
+            <div class="flex items-center gap-1"><span class="kbd">R</span>Raise</div>
+            <div class="flex items-center gap-1"><span class="kbd">A</span>All-in</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Fixed action bar -->
+    <footer
+      class="fixed bottom-0 inset-x-0 z-50 bg-[rgb(var(--surface))]/90 backdrop-blur border-t border-[rgb(var(--border))]"
+      aria-label="Action Bar"
+    >
+      <div class="mx-auto px-4 lg:px-6 py-3 flex items-center justify-between" style="max-width: 900px;">
+        <!-- legal_actions comes from server; no client inference -->
+        {% if session_ended %}
+          {% include "ui/_session_end.html" with session_id=session_id summary=ended_summary ended_reason_text=ended_reason_text last_hand_id=last_hand_id %}
+        {% else %}
+          <form id="action-form" class="flex items-center gap-2"
+                hx-post="/api/v1/ui/hand/{{hand_id}}/act"
+                hx-swap="none"
+                hx-indicator="#act-indicator"
+                hx-include="#amount-wrap"
+          >
+            {% csrf_token %}
+            {% include "ui/_actions.html" with actions=actions ended=False only %}
+
+            <!-- Amount input (server-controlled visibility/range) -->
+            {% include "ui/_amount.html" with amount=actions.amount only %}
+
+            <div id="act-indicator" class="htmx-indicator text-xs text-[rgb(var(--muted))] ml-2">Sending…</div>
+          </form>
+        {% endif %}
+      </div>
+    </footer>
+
+    <!-- Optional: keyboard shortcuts (tiny inline script) -->
+    <script>
+      // Map F/C/B/R/A to actions; server also validates
+      addEventListener("keydown", (e) => {
+        if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+        const form = document.getElementById("action-form");
+        if (!form) return;
+        const map = {
+          KeyF: "fold",
+          KeyC: null, // C prefers Call, falls back to Check
+          KeyR: "raise",
+          KeyB: "bet",
+          KeyA: "allin",
+        };
+        if (!(e.code in map)) return;
+        e.preventDefault();
+        if (e.code === "KeyC") {
+          const callBtn = form.querySelector('button[name=action][value="call"]');
+          const checkBtn = form.querySelector('button[name=action][value="check"]');
+          const btn = (callBtn && !callBtn.disabled) ? callBtn : checkBtn;
+          btn?.click();
+          return;
+        }
+        const action = map[e.code];
+        const btn = form.querySelector(`button[name=action][value=${action}]`);
+        if (btn && !btn.disabled) btn.click();
+      });
+
+      // Sync range and number inputs for amount
+      function syncAmountInputs() {
+        const amountWrap = document.getElementById('amount-wrap');
+        if (!amountWrap) return;
+
+        const rangeInput = amountWrap.querySelector('input[type="range"]');
+        const numberInput = amountWrap.querySelector('input[type="number"]');
+
+        if (!rangeInput || !numberInput) return;
+
+        // Sync range to number input
+        rangeInput.addEventListener('input', () => {
+          numberInput.value = rangeInput.value;
+        });
+
+        // Sync number to range input
+        numberInput.addEventListener('input', () => {
+          const value = parseFloat(numberInput.value);
+          const min = parseFloat(rangeInput.min);
+          const max = parseFloat(rangeInput.max);
+
+          // Validate and clamp the value
+          if (!isNaN(value) && value >= min && value <= max) {
+            rangeInput.value = value;
+          } else if (value < min) {
+            rangeInput.value = min;
+            numberInput.value = min;
+          } else if (value > max) {
+            rangeInput.value = max;
+            numberInput.value = max;
+          }
+        });
+
+        // Handle number input blur to ensure valid value
+        numberInput.addEventListener('blur', () => {
+          const value = parseFloat(numberInput.value);
+          if (isNaN(value)) {
+            numberInput.value = rangeInput.value;
+          }
+        });
+      }
+
+      // Initialize sync when DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', syncAmountInputs);
+      } else {
+        syncAmountInputs();
+      }
+
+      // Re-initialize after HTMX swaps
+      document.addEventListener('htmx:afterSwap', syncAmountInputs);
+
+      // 重新触发动画 - 确保头像脉冲动画在HTMX更新后正确重启
+      document.addEventListener('htmx:afterSwap', () => {
+        const seatsContainer = document.getElementById('seats');
+        if (!seatsContainer) return;
+
+        // 查找有动画类的头像
+        const animatedAvatars = seatsContainer.querySelectorAll('.avatar-pulse');
+        animatedAvatars.forEach(avatar => {
+          // 临时移除动画类以强制重启
+          avatar.classList.remove('avatar-pulse');
+
+          // 强制重排
+          void avatar.offsetHeight;
+
+          // 重新添加动画类
+          avatar.classList.add('avatar-pulse');
+        });
+
+        // 同步教学模式到根容器属性（用于样式/状态）
+        try {
+          const flag = document.getElementById('teach-flag');
+          if (flag) {
+            const root = document.getElementById('app-root');
+            if (root) root.setAttribute('data-teach', flag.getAttribute('data-teach') || '');
+          }
+        } catch (_) {}
+      });
+    </script>
+    <style>
+      /* Safe area padding to avoid fixed footer overlap */
+      .pb-safe { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+      /* Landscape/short viewport: compact layout */
+      @media (orientation: landscape) {
+        #table-card { aspect-ratio: auto; height: min(68vh, calc(100vh - 200px)); }
+        .action-log-card {
+          width: 10.5rem !important; /* 168px, 更紧凑 */
+          right: 0.75rem !important; /* 12px, 靠近边缘 */
+          bottom: 0.75rem !important;
+          font-size: 0.75rem !important; /* 12px, 保持字体大小 */
+          padding: 0.5rem !important; /* 8px, 保持内边距 */
+          /* 固定高度以容纳5行日志 */
+          height: 7rem !important; /* 112px, 固定高度 */
+          max-height: 7rem !important;
+        }
+        .action-log-card .stat-label {
+          font-size: 0.625rem !important; /* 10px, 标题字体 */
+          margin-bottom: 0.25rem !important; /* 4px, 标题下边距 */
+          line-height: 1.2 !important; /* 紧凑行高 */
+        }
+        /* 调整日志内容的紧凑布局 - 固定5行 */
+        .action-log-card #action-log {
+          height: 5rem !important; /* 80px, 固定5行高度 */
+          max-height: 5rem !important;
+          margin-top: 0 !important; /* 移除上边距 */
+          overflow-y: auto !important; /* 启用垂直滚动 */
+          scrollbar-width: thin !important; /* 细滚动条 */
+        }
+        .action-log-card #action-log .space-y-1 > * + * {
+          margin-top: 0.125rem !important; /* 2px, 更紧凑的行间距 */
+        }
+        /* 确保每行日志有合适的行高 */
+        .action-log-card #action-log div {
+          line-height: 1.3 !important; /* 15.6px行高，配合12px字体 */
+          min-height: 1rem !important; /* 16px最小高度 */
+        }
+      }
+      @media (max-height: 540px) {
+        #table-card { aspect-ratio: auto; height: calc(100vh - 180px); }
+        .action-log-card {
+          width: 9rem !important; /* 144px, 更紧凑 */
+          right: 0.5rem !important; /* 8px */
+          bottom: 0.5rem !important;
+          font-size: 0.7rem !important; /* 11.2px */
+          padding: 0.375rem !important; /* 6px */
+          max-height: 4rem !important; /* 64px, 限制高度 */
+        }
+        .action-log-card .stat-label {
+          font-size: 0.6rem !important; /* 9.6px */
+        }
+        /* 调整日志内容的紧凑布局 */
+        .action-log-card #action-log {
+          max-height: 3rem !important; /* 48px, 更小的高度 */
+          margin-top: 0.25rem !important; /* 4px, 更小的上边距 */
+        }
+        .action-log-card #action-log .space-y-1 > * + * {
+          margin-top: 0.125rem !important; /* 2px, 更小的行间距 */
+        }
+      }
+      /* Mobile optimization - 移除硬编码，让clamp()自动处理 */
+
+      /* Hole cards container - 优化重叠实现 */
+      .hole-cards-container playing-card:nth-child(2) {
+        margin-left: var(--hole-overlap);
+      }
+
+      /* 头像克制呼吸环动画 - 行动提示效果 */
+      @keyframes avatar-pulse-ring {
+        0% {
+          box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.15);
+        }
+        50% {
+          box-shadow: 0 0 0 6px rgba(79, 70, 229, 0.35);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.15);
+        }
+      }
+
+      /* 头像脉冲动画类 */
+      .avatar-pulse {
+        animation: avatar-pulse-ring 2s ease-in-out infinite !important;
+        border: 2px solid rgb(79, 70, 229) !important;
+        position: relative !important;
+        z-index: 1 !important;
+        border-radius: 50% !important; /* 确保圆角 */
+      }
+
+    </style>
+
+    <!-- Theme toggle JavaScript -->
+    <script src="/static/js/theme-toggle.js"></script>
+    <!-- CardMeister Web Component for card visuals -->
+    <script src="/static/vendor/cardmeister/elements.cardmeister.min.js"></script>
+  </body>
+</html>

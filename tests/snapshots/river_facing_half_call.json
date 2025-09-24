@@ -1,0 +1,10 @@
+{
+  "codes": [
+    "FL_MDF_DEFEND"
+  ],
+  "meta": {},
+  "policy": "river_v1",
+  "suggested": {
+    "action": "call"
+  }
+}

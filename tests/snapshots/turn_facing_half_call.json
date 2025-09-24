@@ -1,0 +1,10 @@
+{
+  "codes": [
+    "FL_MDF_DEFEND"
+  ],
+  "meta": {},
+  "policy": "turn_v1",
+  "suggested": {
+    "action": "call"
+  }
+}

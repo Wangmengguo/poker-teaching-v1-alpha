@@ -1,0 +1,27 @@
+{% comment %} Board + pot (centered layout) — CardMeister based {% endcomment %}
+<div id="board" hx-swap-oob="outerHTML">
+  <div class="flex flex-col items-center justify-center space-y-3">
+    <!-- Pot display - centered -->
+    <div class="text-center">
+      <div class="chip">Pot {{ st.pot|default:"0" }}</div>
+    </div>
+
+    <!-- Community cards: always render 5 slots to avoid layout shift -->
+    {% with b=st.board %}
+      <div class="flex items-center" style="gap: var(--board-gap)">
+        {% if b and b.0 %}{% include "ui/_card.html" with cid=b.0 size='md' %}{% else %}{% include "ui/_card.html" with cid=None facedown=True size='md' %}{% endif %}
+        {% if b and b.1 %}{% include "ui/_card.html" with cid=b.1 size='md' %}{% else %}{% include "ui/_card.html" with cid=None facedown=True size='md' %}{% endif %}
+        {% if b and b.2 %}{% include "ui/_card.html" with cid=b.2 size='md' %}{% else %}{% include "ui/_card.html" with cid=None facedown=True size='md' %}{% endif %}
+        {% if b and b.3 %}{% include "ui/_card.html" with cid=b.3 size='md' %}{% else %}{% include "ui/_card.html" with cid=None facedown=True size='md' %}{% endif %}
+        {% if b and b.4 %}{% include "ui/_card.html" with cid=b.4 size='md' %}{% else %}{% include "ui/_card.html" with cid=None facedown=True size='md' %}{% endif %}
+      </div>
+    {% endwith %}
+
+    <!-- Street information - centered -->
+    {% if st.street %}
+      <div class="text-center">
+        <div class="text-xs text-[rgb(var(--muted))]">{{ st.street }}</div>
+      </div>
+    {% endif %}
+  </div>
+</div>

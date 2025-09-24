@@ -1,0 +1,14 @@
+{
+  "codes": [
+    "PF_OPEN_RANGE_HIT"
+  ],
+  "meta": {
+    "open_bb": 2.5,
+    "plan": "若被 3bet：小/中档可考虑跟注；更大 弃牌。"
+  },
+  "policy": "preflop_v1",
+  "suggested": {
+    "action": "raise",
+    "amount": 125
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "codes": [],
+  "meta": {
+    "rule_path": "single_raised/role/caller/oop/dry/ge6/defaults:value_two_pair_plus",
+    "size_tag": "third"
+  },
+  "policy": "turn_v1",
+  "suggested": {
+    "action": "check"
+  }
+}

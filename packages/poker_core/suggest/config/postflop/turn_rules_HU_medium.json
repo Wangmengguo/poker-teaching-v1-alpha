@@ -1,0 +1,39 @@
+{
+  "single_raised": {
+    "role": {
+      "pfr": {
+        "ip": {
+          "dry": {"le3": {"defaults": {"action": "bet", "size_tag": "third"}}, "3to6": {"defaults": {"action": "bet", "size_tag": "half"}}, "ge6": {"defaults": {"action": "bet", "size_tag": "half"}}},
+          "semi": {"le3": {"defaults": {"action": "bet", "size_tag": "half"}}, "3to6": {"defaults": {"action": "bet", "size_tag": "half"}}, "ge6": {"defaults": {"action": "check"}}},
+          "wet": {"le3": {"defaults": {"action": "bet", "size_tag": "half"}}, "3to6": {"defaults": {"action": "check"}}, "ge6": {"defaults": {"action": "check"}}}
+        },
+        "oop": {
+          "dry": {"le3": {"defaults": {"action": "bet", "size_tag": "third"}}, "3to6": {"defaults": {"action": "check"}}, "ge6": {"defaults": {"action": "check"}}},
+          "semi": {"le3": {"defaults": {"action": "check"}}, "3to6": {"defaults": {"action": "check"}}, "ge6": {"defaults": {"action": "check"}}},
+          "wet": {"le3": {"defaults": {"action": "check"}}, "3to6": {"defaults": {"action": "check"}}, "ge6": {"defaults": {"action": "check"}}}
+        }
+      },
+      "caller": {
+        "ip": {
+          "dry": {"le3": {"defaults": {"action": "check"}}, "3to6": {"defaults": {"action": "check"}}, "ge6": {"defaults": {"action": "check"}}},
+          "semi": {"le3": {"defaults": {"action": "check"}}, "3to6": {"defaults": {"action": "check"}}, "ge6": {"defaults": {"action": "check"}}},
+          "wet": {"le3": {"defaults": {"action": "check"}}, "3to6": {"defaults": {"action": "check"}}, "ge6": {"defaults": {"action": "check"}}}
+        },
+        "oop": {
+          "dry": {"le3": {"defaults": {"action": "check"}}, "3to6": {"defaults": {"action": "check"}}, "ge6": {"defaults": {"action": "check"}}},
+          "semi": {"le3": {"defaults": {"action": "check"}}, "3to6": {"defaults": {"action": "check"}}, "ge6": {"defaults": {"action": "check"}}},
+          "wet": {"le3": {"defaults": {"action": "check"}}, "3to6": {"defaults": {"action": "check"}}, "ge6": {"defaults": {"action": "check"}}}
+        }
+      }
+    }
+  },
+  "limped": {
+    "role": {
+      "na": {
+        "ip": {"dry": {"le3": {"defaults": {"action": "bet", "size_tag": "third"}}}},
+        "oop": {"dry": {"le3": {"defaults": {"action": "check"}}}}
+      }
+    }
+  }
+}
+

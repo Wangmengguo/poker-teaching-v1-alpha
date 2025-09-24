@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Poker Teaching Demo</title>
+  <style>
+    body{font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#0b0b0b; color:#e6e6e6; margin:0; padding:40px;}
+    .card{background:#111; border:1px solid #222; border-radius:16px; padding:20px; max-width:860px; margin:auto; box-shadow:0 10px 30px rgba(0,0,0,.25);}
+    .row{display:flex; gap:16px; align-items:center;}
+    button{padding:10px 16px; border-radius:12px; border:1px solid #2a2a2a; background:#161616; color:#e6e6e6; cursor:pointer; transition:transform .08s ease;}
+    button:active{transform:scale(.98)}
+    .pulse{animation:pulse .4s ease;}
+    @keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.02)}100%{transform:scale(1)}}
+    pre{background:#0d0d0d; padding:16px; border-radius:12px; overflow:auto; border:1px solid #1f1f1f;}
+    .muted{color:#9aa0a6}
+    .kpi{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap:12px;
+      margin-top:8px;
+    }
+    .kpi .pill{
+      background:#0d0d0d; border:1px solid #1f1f1f;
+      padding:10px 12px; border-radius:10px;
+    }
+    .kpi .label{display:block; font-size:12px; color:#9aa0a6; margin-bottom:4px; letter-spacing:.2px;}
+    .kpi .value{font-size:18px; font-weight:600;}
+    a{color:#9bd}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="margin-top:0">Poker Teaching • Minimal Demo</h2>
+    <p class="muted">极简、低饱和、高信息密度 + 微动效</p>
+    <div class="row">
+      <button id="dealBtn">Deal</button>
+      <label>Seed (optional): <input id="seed" type="number" style="width:140px;background:#0d0d0d;color:#e6e6e6;border:1px solid #1f1f1f;border-radius:8px;padding:6px"></label>
+      <label>Players: <input id="players" type="number" value="2" min="2" max="6" style="width:80px;background:#0d0d0d;color:#e6e6e6;border:1px solid #1f1f1f;border-radius:8px;padding:6px"></label>
+      <a href="/api/docs" target="_blank">OpenAPI Docs →</a>
+    </div>
+    <div class="kpi">
+      <div class="pill">
+        <span class="label">Session deals</span>
+        <span class="value" id="session_deals">0</span>
+      </div>
+      <div class="pill">
+        <span class="label">Replays total</span>
+        <span class="value" id="db_replays_total">0</span>
+      </div>
+      <div class="pill">
+        <span class="label">Last latency (ms)</span>
+        <span class="value" id="lat">–</span>
+      </div>
+      <div class="pill">
+        <span class="label">Errors</span>
+        <span class="value" id="errs">0</span>
+      </div>
+    </div>    
+    <h3>Result</h3>
+    <pre id="out">{}</pre>
+    <h3>Replay</h3>
+    <pre id="replay">{}</pre>
+  </div>
+
+  <script>
+    let timer=null, ctrl=null;
+    
+    const dealBtn = document.getElementById('dealBtn');
+    const out = document.getElementById('out');
+    const replayPre = document.getElementById('replay');
+    
+    function upd(id, val){
+      const el = document.getElementById(id);
+      const old = el.textContent;
+      const nv = (val ?? '-').toString();
+      if (old !== nv){
+        el.textContent = nv;
+        el.classList.add('pulse');
+        setTimeout(()=>el.classList.remove('pulse'), 300);
+      }
+    }
+    async function refreshMetrics() {
+      try{
+        if (ctrl) ctrl.abort();
+        ctrl = new AbortController();
+        const r = await fetch('/api/v1/metrics', {signal: ctrl.signal});
+        const m = await r.json();
+        upd('session_deals', m.deals_total);
+        upd('db_replays_total', m.db_replays_total);
+        upd('lat', m.last_latency_ms ?? '–');
+        upd('errs', m.error_total);
+      }catch(e){}
+    }
+    function startPolling(){ if(!timer) timer=setInterval(refreshMetrics, 5000); }
+    function stopPolling(){ if(timer){ clearInterval(timer); timer=null; } }
+
+    document.addEventListener('visibilitychange', () => document.hidden ? stopPolling() : (refreshMetrics(), startPolling()));
+
+    refreshMetrics();      // 首次渲染
+    startPolling();        // 开始轮询
+
+    async function deal() {
+      const seed = document.getElementById('seed').value || null;
+      const players = parseInt(document.getElementById('players').value || '2');
+      dealBtn.classList.add('pulse');
+      setTimeout(()=>dealBtn.classList.remove('pulse'), 400);
+      const res = await fetch('/api/v1/table/deal', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({seed: seed? Number(seed): null, num_players: players})
+      });
+      const json = await res.json();
+      out.textContent = JSON.stringify(json, null, 2);
+      if(json.hand_id){
+        const rep = await fetch('/api/v1/replay/'+json.hand_id).then(r=>r.json());
+        replayPre.textContent = JSON.stringify(rep, null, 2);
+      }
+      await refreshMetrics();
+    }
+    dealBtn.addEventListener('click', deal);
+  </script>
+</body>
+</html>

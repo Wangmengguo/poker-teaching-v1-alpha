@@ -1,0 +1,18 @@
+/* Theme Toggle Styles */
+/* Can be reused across multiple pages */
+
+/* Theme transition effects */
+* {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Theme toggle button hover effect */
+#btn-theme-toggle:hover {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
+}
+
+/* Icon transition effects */
+.icon-moon, .icon-sun {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}

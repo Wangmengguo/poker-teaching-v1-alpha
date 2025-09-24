@@ -1,0 +1,14 @@
+{
+  "codes": [
+    "FL_RANGE_ADV_SMALL_BET"
+  ],
+  "meta": {
+    "rule_path": "single_raised/role/pfr/ip/dry/defaults:high",
+    "size_tag": "third"
+  },
+  "policy": "flop_v1",
+  "suggested": {
+    "action": "bet",
+    "amount": 200
+  }
+}

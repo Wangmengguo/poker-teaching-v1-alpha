@@ -1,0 +1,6 @@
+{% comment %} Update HUD values individually via OOB {% endcomment %}
+<div id="hud-blinds" hx-swap-oob="outerHTML" class="stat-value">SB {{ hud.sb }} / BB {{ hud.bb }}</div>
+<div id="hud-pot" hx-swap-oob="outerHTML" class="stat-value">{{ hud.pot }}</div>
+<div id="hud-hand" hx-swap-oob="outerHTML" class="stat-value">#{{ hud.hand_no }}</div>
+<div id="hud-actor" hx-swap-oob="outerHTML" class="stat-value">{{ hud.next_role }}</div>
+<div id="aria-next" hx-swap-oob="outerHTML" aria-live="polite" class="sr-only">Next to act: {{ hud.next_role }}</div>

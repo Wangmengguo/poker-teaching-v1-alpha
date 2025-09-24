@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Poker Teaching Texas Hold'em — Start the Session</title>
+
+    <!-- Tailwind & HTMX -->
+    <script src="/static/vendor/tailwind/tailwindcss.min.js"></script>
+    <script src="/static/vendor/htmx/htmx.min.js"></script>
+    <script>
+      tailwind.config = { theme: { extend: { boxShadow: { elevated: "0 4px 16px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04)" } } } };
+    </script>
+
+    <!-- 设计变量：与游戏界面完全一致（功能极简；不使用绿色） -->
+    <style>
+      :root {
+        --bg: 248 249 251; --surface: 255 255 255; --text: 17 24 39; --muted: 113 113 122; --border: 228 228 231; --ring: 226 232 240;
+        --brand-500: 99 102 241; --brand-600: 79 70 229; --brand-700: 67 56 202; --action: var(--brand-600);
+        --info: 59 130 246; --warn: 245 158 11; --danger: 239 68 68;
+      }
+      [data-theme="dark"] {
+        --bg: 17 17 19; --surface: 24 24 27; --text: 244 244 245; --muted: 161 161 170; --border: 63 63 70; --ring: 63 63 70;
+        --brand-500: 129 140 248; --brand-600: 99 102 241; --brand-700: 79 70 229; --action: var(--brand-600);
+        --info: 96 165 250; --warn: 245 158 11; --danger: 248 113 113;
+      }
+    </style>
+    <style type="text/tailwindcss">
+      @layer components {
+        .card{@apply bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl shadow-sm}
+        .btn{@apply inline-flex items-center justify-center gap-2 rounded-xl h-12 px-6 font-medium transition active:scale-[.98] select-none disabled:opacity-50 disabled:cursor-not-allowed}
+        .btn-primary{@apply text-white shadow; background-color: rgb(var(--action));}
+        .btn-primary:hover{ filter: brightness(.95); }
+        .kbd{@apply text-[10px] px-1.5 py-0.5 rounded border border-[rgb(var(--border))] text-[rgb(var(--muted))];}
+      }
+    </style>
+    <style>
+      /* 平滑交错过渡：只动 transform，不动 left/right，保证 150ms 柔和靠近-交错-分开 */
+      #cards-wrap playing-card { transition: transform 150ms ease, filter 150ms ease; will-change: transform; }
+      #cards-wrap .mix-left { transform: translateX(22px) rotate(-4deg) scale(1.01) !important; }
+      #cards-wrap .mix-right { transform: translateX(-22px) rotate(4deg) scale(1.01) !important; }
+    </style>
+  </head>
+  <body class="min-h-screen bg-[rgb(var(--bg))] text-[rgb(var(--text))] antialiased">
+    <!-- 居中舞台：只放图标与按钮，确保聚焦 -->
+    <main class="min-h-screen grid place-items-center">
+      <section class="flex flex-col items-center gap-12">
+        <!-- 几何图标：扑克卡面（与主题统一的中性/品牌色；无绿色） -->
+        <div id="cards-wrap" class="relative z-0 w-[248px] h-[260px] select-none">
+          <!-- 背后卡片（轻微旋转） -->
+          <playing-card id="cardK"
+            cid="Kd"
+            suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F"
+            backcolor="#0B0B0F"
+            style="width:168px;height:auto;filter:drop-shadow(0 6px 20px rgba(0,0,0,.08))"
+            class="absolute left-2 top-10 rotate-[-8deg] opacity-[.98] pointer-events-none">
+          </playing-card>
+          <!-- 前景卡片（略微相反方向旋转，位于上层） -->
+          <playing-card id="cardA"
+            cid="As"
+            suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F"
+            backcolor="#0B0B0F"
+            style="width:168px;height:auto;filter:drop-shadow(0 10px 28px rgba(0,0,0,.10))"
+            class="absolute right-2 top-4 rotate-[8deg] z-10 pointer-events-none">
+          </playing-card>
+        </div>
+
+        <!-- 标题和按钮组合：更小的垂直间距 -->
+        <div class="flex flex-col items-center gap-4">
+          <div class="text-xs sm:text-sm uppercase tracking-wider text-[rgb(var(--muted))] select-none">
+            Texas Hold'em
+          </div>
+
+          <!-- 主按钮：统一行动色，强聚焦；支持 HTMX 启动并重定向到 hand 页面 -->
+          <form
+            class="relative z-20 flex flex-col items-center gap-2"
+            hx-post="/api/v1/ui/start"
+            hx-swap="none"
+            hx-indicator="#start-indicator"
+            hx-headers='{"X-CSRFToken":"{{ csrf_token|escapejs }}"}'
+            hx-disabled-elt="#start-btn"
+          >
+            {% csrf_token %}
+            <button id="start-btn" type="submit" class="btn btn-primary text-base h-12 px-8" accesskey="s" aria-label="Start the session">
+              Start the session
+            </button>
+            <div id="start-indicator" class="htmx-indicator text-xs text-[rgb(var(--muted))]">Preparing session…</div>
+          </form>
+
+          <!-- UX 细节：提示快捷键（Enter / S）-->
+          <div class="text-xs text-[rgb(var(--muted))] -mt-6">Press <span class="kbd">Enter</span> or <span class="kbd">S</span> to start</div>
+        </div>
+
+    </main>
+
+    <script>
+      // 可选：根据系统偏好自动切换暗色（也可由全局 layout 统一处理）
+      try { if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-theme','dark'); } catch (e) {}
+      // 快捷键：Enter / S 触发
+      addEventListener('keydown', (e) => {
+        if (e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+        if (e.key === 'Enter' || e.key.toLowerCase() === 's') {
+          const btn = document.querySelector('button[type=submit]');
+          if (btn && !btn.disabled) { e.preventDefault(); btn.click(); }
+        }
+      });
+    </script>
+    <script>
+      (function(){
+        const wrap = document.getElementById('cards-wrap');
+        const a = document.getElementById('cardA');
+        const k = document.getElementById('cardK');
+        if(!wrap||!a||!k) return;
+        let idx = 0; // 当前花色组合索引
+        const combos = [ ['As','Kd'], ['Ah','Kc'], ['Ad','Ks'], ['Ac','Kh'] ];
+
+        const leftPos = 'absolute left-2 top-10 rotate-[-8deg] opacity-[.98] pointer-events-none';
+        const rightPos = 'absolute right-2 top-4 rotate-[8deg] z-10 pointer-events-none';
+
+        function setStyles(el, front){
+          el.style.width = '168px';
+          el.style.height = 'auto';
+          el.style.filter = front ? 'drop-shadow(0 10px 28px rgba(0,0,0,.10))' : 'drop-shadow(0 6px 20px rgba(0,0,0,.08))';
+        }
+        function apply(i, frontIsA){
+          const [aCid, kCid] = combos[i];
+          a.setAttribute('cid', aCid);
+          k.setAttribute('cid', kCid);
+          if(frontIsA){
+            a.setAttribute('class', rightPos);
+            k.setAttribute('class', leftPos);
+          }else{
+            a.setAttribute('class', leftPos);
+            k.setAttribute('class', rightPos);
+          }
+          setStyles(a, frontIsA);
+          setStyles(k, !frontIsA);
+        }
+        // 初始：A 在前
+        let frontIsA = true;
+        apply(0, frontIsA);
+
+        wrap.addEventListener('click', function(){
+          // 1) 先向中心靠拢：根据当前前后与左右位置，选择靠近方向
+          const aApproach = frontIsA ? 'mix-right' : 'mix-left'; // A 在右侧(前)→向左靠近；在左侧(后)→向右靠近
+          const kApproach = frontIsA ? 'mix-left'  : 'mix-right';// K 在左侧(后)→向右靠近；在右侧(前)→向左靠近
+          a.classList.add(aApproach);
+          k.classList.add(kApproach);
+
+          // 2) 150ms 后完成前后层交换与 AK 花色切换
+          setTimeout(() => {
+            idx = (idx + 1) % combos.length;   // 切换花色（始终 AK）
+            frontIsA = !frontIsA;               // 交换前后层
+            apply(idx, frontIsA);
+
+            // 3) 下一帧移除靠拢类，两张卡片回到新侧位，平滑分开
+            requestAnimationFrame(() => {
+              a.classList.remove('mix-right','mix-left');
+              k.classList.remove('mix-right','mix-left');
+            });
+          }, 150);
+        });
+      })();
+    </script>
+    <!-- CardMeister Web Component -->
+    <script src="/static/vendor/cardmeister/elements.cardmeister.min.js"></script>
+  </body>
+</html>

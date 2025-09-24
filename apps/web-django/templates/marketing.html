@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Poker Teaching — 学中打 · 打中学</title>
+  <!-- 引入 0) 的共享变量 -->
+  <script src="/static/vendor/tailwind/tailwindcss.min.js"></script>
+  <script>tailwind.config={theme:{extend:{boxShadow:{elevated:"0 4px 16px rgba(0,0,0,.06),0 2px 8px rgba(0,0,0,.04)"}}}};</script>
+  <style>:root{--bg:248 249 251;--surface:255 255 255;--text:17 24 39;--muted:113 113 122;--border:228 228 231;--ring:226 232 240;--brand-600:79 70 229;--action:var(--brand-600)} [data-theme="dark"]{--bg:17 17 19;--surface:24 24 27;--text:244 244 245;--muted:161 161 170;--border:63 63 70;--ring:63 63 70;--brand-600:99 102 241;--action:var(--brand-600)}</style>
+  <style type="text/tailwindcss">@layer components{.card{@apply bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl shadow-sm}.btn{@apply inline-flex items-center justify-center gap-2 rounded-xl h-11 px-4 font-medium transition active:scale-[.98]}.btn-primary{@apply text-white shadow; background-color:rgb(var(--action))}.btn-primary:hover{filter:brightness(.95)}.btn-ghost{@apply border border-[rgb(var(--border))]}}</style>
+</head>
+<body class="bg-[rgb(var(--bg))] text-[rgb(var(--text))] antialiased">
+  <!-- 顶栏 -->
+  <header class="sticky top-0 z-50 bg-[rgb(var(--bg))]/80 backdrop-blur border-b border-[rgb(var(--border))]">
+    <div class="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
+      <div class="font-semibold tracking-tight">Poker Teaching</div>
+      <nav class="hidden sm:flex items-center gap-6 text-sm text-[rgb(var(--muted))]">
+        <a href="#features" class="hover:text-[rgb(var(--text))]">特性</a>
+        <a href="#pricing" class="hover:text-[rgb(var(--text))]">定价</a>
+        <a href="#faq" class="hover:text-[rgb(var(--text))]">FAQ</a>
+      </nav>
+      <div class="flex items-center gap-2">
+        <a href="/app" class="btn btn-ghost">进入应用</a>
+        <a href="/signup" class="btn btn-primary">免费开始</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="max-w-5xl mx-auto px-6 py-16 sm:py-24 text-center">
+    <h1 class="text-4xl sm:text-6xl font-semibold tracking-tight leading-tight">学得会的德扑训练，<br class="hidden sm:block"/>看得见的进步</h1>
+    <p class="mt-4 text-lg text-[rgb(var(--muted))]">从入门到对局复盘，
+      用“功能极简”的真实牌局界面 + Coach 建议，
+      在实战中理解策略。</p>
+    <div class="mt-8 flex items-center justify-center gap-3">
+      <a class="btn btn-primary" href="/signup">免费开始</a>
+      <a class="btn btn-ghost" href="#pricing">查看定价</a>
+    </div>
+  </section>
+
+  <!-- 特性 -->
+  <section id="features" class="max-w-5xl mx-auto px-6 py-12 grid sm:grid-cols-2 gap-6">
+    <div class="card p-6">
+      <div class="text-sm font-semibold">实战驱动</div>
+      <p class="mt-2 text-[rgb(var(--muted))]">同一套 UI 贯穿教学与对局。无干扰、低色彩、信息层级清晰。</p>
+    </div>
+    <div class="card p-6">
+      <div class="text-sm font-semibold">策略建议不过度剧透</div>
+      <p class="mt-2 text-[rgb(var(--muted))]">Coach 返回简要建议与理由入口，尊重学习节奏。</p>
+    </div>
+    <div class="card p-6">
+      <div class="text-sm font-semibold">用量透明</div>
+      <p class="mt-2 text-[rgb(var(--muted))]">训练局数与建议调用分离计量，按需付费。</p>
+    </div>
+    <div class="card p-6">
+      <div class="text-sm font-semibold">一键复盘</div>
+      <p class="mt-2 text-[rgb(var(--muted))]">自动记录行动与底池，支持事后分析与分享。</p>
+    </div>
+  </section>
+
+  <!-- 定价 -->
+  <section id="pricing" class="max-w-5xl mx-auto px-6 py-16">
+    <h2 class="text-2xl font-semibold tracking-tight">简单、可扩展的定价</h2>
+    <p class="mt-2 text-[rgb(var(--muted))]">先免费体验，按训练强度升级。</p>
+
+    <div class="mt-6 grid sm:grid-cols-3 gap-6">
+      <div class="card p-6">
+        <div class="text-sm font-semibold">Starter</div>
+        <div class="mt-2 text-3xl font-bold">¥0</div>
+        <ul class="mt-4 space-y-2 text-sm text-[rgb(var(--muted))] list-disc list-inside">
+          <li>每日 20 手训练</li>
+          <li>基础 Coach 建议</li>
+          <li>复盘导出（CSV）</li>
+        </ul>
+        <a class="btn btn-primary mt-6 w-full" href="/signup">免费开始</a>
+      </div>
+
+      <div class="card p-6 border-2 border-[rgb(var(--action))]">
+        <div class="text-sm font-semibold">Pro</div>
+        <div class="mt-2 text-3xl font-bold">¥39 / 月</div>
+        <ul class="mt-4 space-y-2 text-sm text-[rgb(var(--muted))] list-disc list-inside">
+          <li>不限训练手数</li>
+          <li>高级 Coach（EV/备选线）</li>
+          <li>个性化训练计划</li>
+        </ul>
+        <a class="btn btn-primary mt-6 w-full" href="/signup?plan=pro">开始 Pro</a>
+      </div>
+
+      <div class="card p-6">
+        <div class="text-sm font-semibold">Team</div>
+        <div class="mt-2 text-3xl font-bold">¥199 / 月</div>
+        <ul class="mt-4 space-y-2 text-sm text-[rgb(var(--muted))] list-disc list-inside">
+          <li>多人组织管理</li>
+          <li>进阶复盘与报告</li>
+          <li>优先支持</li>
+        </ul>
+        <a class="btn btn-ghost mt-6 w-full" href="/contact">联系销售</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="max-w-5xl mx-auto px-6 py-16">
+    <h2 class="text-2xl font-semibold tracking-tight">常见问题</h2>
+    <div class="mt-6 grid gap-4">
+      <details class="card p-4" open>
+        <summary class="font-medium cursor-pointer">为什么不用传统绿色牌桌？</summary>
+        <p class="mt-2 text-[rgb(var(--muted))]">我们采用功能极简主题：低彩度、少阴影、统一行动色，帮助专注决策。</p>
+      </details>
+      <details class="card p-4">
+        <summary class="font-medium cursor-pointer">Coach 会不会剧透太多？</summary>
+        <p class="mt-2 text-[rgb(var(--muted))]">默认只给出建议与简要理由，详细推导需手动展开，尊重你的学习节奏。</p>
+      </details>
+      <details class="card p-4">
+        <summary class="font-medium cursor-pointer">是否支持移动端？</summary>
+        <p class="mt-2 text-[rgb(var(--muted))]">支持。行动条固定底部，大按钮≥44px 触达。</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- 页脚 -->
+  <footer class="border-t border-[rgb(var(--border))]">
+    <div class="max-w-5xl mx-auto px-6 py-8 text-sm text-[rgb(var(--muted))] flex items-center justify-between">
+      <span>© 2025 Poker Teaching</span>
+      <a href="/privacy" class="hover:text-[rgb(var(--text))]">隐私</a>
+    </div>
+  </footer>
+</body>
+</html>

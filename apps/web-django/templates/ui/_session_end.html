@@ -1,0 +1,35 @@
+{% comment %} Session end card (SSR + OOB). Replace the whole action area. {% endcomment %}
+<div id="action-form" hx-swap-oob="outerHTML" class="card p-4 w-full" role="status" aria-live="polite">
+  <div class="flex items-center justify-between">
+    <div class="text-lg font-semibold">Session Ended</div>
+    <span class="chip">{{ ended_reason_text }}</span>
+  </div>
+  <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+    <div class="card p-3">
+      <div class="stat-label">Hands played</div>
+      <div class="stat-value">{{ summary.hands_played }}</div>
+    </div>
+    <div class="card p-3">
+      <div class="stat-label">Final stacks</div>
+      <div class="stat-value">You {{ summary.final_stacks.0 }} · Opponent {{ summary.final_stacks.1 }}</div>
+    </div>
+    <div class="card p-3">
+      <div class="stat-label">PnL</div>
+      <div class="stat-value">
+        {% with p0=summary.pnl_fmt.0 p1=summary.pnl_fmt.1 %}
+          You {{ p0 }} chips · Opponent {{ p1 }} chips
+        {% endwith %}
+      </div>
+    </div>
+    <div class="card p-3">
+      <div class="stat-label">Session ID</div>
+      <input class="w-full h-10 px-3 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))]" value="{{ session_id }}" readonly />
+    </div>
+  </div>
+  <div class="mt-4 flex items-center gap-2">
+    <a class="btn btn-primary" href="/api/v1/ui/start">Start New Session</a>
+    {% if summary.last_hand_id %}
+      <a class="btn btn-ghost" href="/api/v1/ui/replay/{{ summary.last_hand_id }}" target="_blank">View Last Hand</a>
+    {% endif %}
+  </div>
+</div>

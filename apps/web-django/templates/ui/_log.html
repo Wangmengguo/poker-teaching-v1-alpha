@@ -1,0 +1,11 @@
+{% comment %} Action log (OOB) — show latest 5 lines, chronological order (oldest first). {% endcomment %}
+<div id="action-log" hx-swap-oob="outerHTML" class="mt-1 space-y-1 max-h-28 overflow-auto pr-1">
+  {% if log and log|length %}
+    {% for line in log reversed %}
+      <div class="flex justify-between"><span class="text-[rgb(var(--muted))]"></span><span>{{ line }}</span></div>
+    {% endfor %}
+  {% else %}
+    <div class="text-[rgb(var(--muted))]">—</div>
+  {% endif %}
+</div>
+

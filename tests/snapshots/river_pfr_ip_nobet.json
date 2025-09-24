@@ -1,0 +1,12 @@
+{
+  "codes": [],
+  "meta": {
+    "rule_path": "single_raised/role/pfr/ip/dry/ge6/defaults:value_two_pair_plus",
+    "size_tag": "third"
+  },
+  "policy": "river_v1",
+  "suggested": {
+    "action": "bet",
+    "amount": 200
+  }
+}

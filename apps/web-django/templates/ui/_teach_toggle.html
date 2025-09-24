@@ -1,0 +1,17 @@
+{% comment %} Teach/Practice toggle button (OOB updatable) {% endcomment %}
+<div id="teach-toggle" hx-swap-oob="outerHTML">
+  {% csrf_token %}
+  <button
+    class="btn btn-ghost"
+    title="Toggle teaching mode"
+    hx-post="/api/v1/ui/prefs/teach"
+    hx-vals='{"hand_id":"{{ hand_id|default:"" }}", "session_id":"{{ session_id|default:"" }}", "csrfmiddlewaretoken": "{{ csrf_token }}"}'
+    hx-swap="none"
+  >
+    {{ teach|yesno:"Teach ON,Teach OFF" }}
+  </button>
+  <span class="sr-only">Teaching mode is {{ teach|yesno:"on,off" }}</span>
+  <span id="teach-flag" data-teach="{{ teach|yesno:"1,0" }}" class="hidden"></span>
+  {# teach-flag will be mirrored to app root via small JS listener #}
+</div>
+

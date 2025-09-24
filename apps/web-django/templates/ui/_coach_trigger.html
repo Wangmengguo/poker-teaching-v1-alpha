@@ -1,0 +1,7 @@
+<div id="coach-trigger" hx-swap-oob="outerHTML" class="px-4 pb-4">
+  <button class="btn btn-ghost w-full"
+          hx-post="/api/v1/ui/coach/{{ hand_id }}/suggest"
+          hx-vals='{"actor":0}'
+          hx-headers='{"X-CSRFToken":"{{ csrf_token|escapejs }}"}'
+          hx-swap="none">Get Suggestion</button>
+  </div>

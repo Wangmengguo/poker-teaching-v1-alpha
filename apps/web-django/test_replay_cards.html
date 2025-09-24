@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Card Display Test</title>
+    <style>
+        .card {
+            width: 48px;
+            height: 64px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card-red { color: #dc2626; }
+        .card-black { color: #000000; }
+    </style>
+</head>
+<body>
+    <h2>扑克牌显示测试</h2>
+    <div style="display: flex; gap: 10px;">
+        <div class="card" id="card1">A♠</div>
+        <div class="card card-red" id="card2">K♥</div>
+        <div class="card" id="card3">Q♣</div>
+        <div class="card card-red" id="card4">J♦</div>
+    </div>
+    
+    <script>
+        // 模拟设置扑克牌文本的函数
+        function setCardText(element, card) {
+            if (!card) return;
+            element.textContent = card;
+            // 根据花色设置颜色
+            const suit = card[1];
+            if (suit === '♥' || suit === '♦') {
+                element.classList.add('card-red');
+                element.classList.remove('card-black');
+            } else {
+                element.classList.add('card-black');
+                element.classList.remove('card-red');
+            }
+        }
+        
+        // 测试不同花色的扑克牌
+        setTimeout(() => {
+            setCardText(document.getElementById('card1'), '2♠');
+            setCardText(document.getElementById('card2'), '3♥');
+            setCardText(document.getElementById('card3'), '4♣');
+            setCardText(document.getElementById('card4'), '5♦');
+        }, 1000);
+    </script>
+</body>
+</html>

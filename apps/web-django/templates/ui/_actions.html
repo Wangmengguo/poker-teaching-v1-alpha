@@ -1,0 +1,28 @@
+{% comment %} Actions area; show only allowed actions; first enabled gets autofocus {% endcomment %}
+<div id="legal-actions" hx-swap-oob="outerHTML" class="flex items-center gap-2">
+  {% if not ended %}
+    {% for it in actions.items %}
+      {% if it.action == 'fold' %}
+        <button type="submit" name="action" value="fold" class="btn btn-ghost whitespace-nowrap" {% if forloop.first %}autofocus{% endif %}>Fold <span class="kbd">F</span></button>
+      {% elif it.action == 'check' %}
+        <button type="submit" name="action" value="check" class="btn btn-ghost whitespace-nowrap" {% if forloop.first %}autofocus{% endif %}>Check <span class="kbd">C</span></button>
+      {% elif it.action == 'call' %}
+        <button type="submit" name="action" value="call" class="btn btn-ghost whitespace-nowrap" {% if forloop.first %}autofocus{% endif %}>Call <span class="kbd">C</span></button>
+      {% elif it.action == 'bet' %}
+        <button type="submit" name="action" value="bet" class="btn btn-ghost whitespace-nowrap" {% if forloop.first %}autofocus{% endif %}>Bet <span class="kbd">B</span></button>
+      {% elif it.action == 'raise' %}
+        <button type="submit" name="action" value="raise" class="btn btn-ghost whitespace-nowrap" {% if forloop.first %}autofocus{% endif %}>Raise <span class="kbd">R</span></button>
+      {% elif it.action == 'allin' %}
+        <button type="submit" name="action" value="allin" class="btn btn-ghost whitespace-nowrap" {% if forloop.first %}autofocus{% endif %}>All-in <span class="kbd">A</span></button>
+      {% endif %}
+    {% endfor %}
+  {% else %}
+    <div class="text-sm text-[rgb(var(--muted))]">Hand completed.</div>
+    <form hx-post="/api/v1/ui/session/{{ session_id }}/next" hx-swap="none" hx-indicator="#act-indicator" hx-disabled-elt="button[type=submit]">
+      {% csrf_token %}
+      <input type="hidden" name="seed" value="">
+      <button class="btn btn-primary ml-2" type="submit">Start Next Hand</button>
+    </form>
+    <a class="btn btn-ghost ml-2" href="{{ replay_url|default:'#' }}" target="_blank">View Replay</a>
+  {% endif %}
+</div>

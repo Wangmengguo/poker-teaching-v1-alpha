@@ -1,0 +1,38 @@
+<!--
+  Poker-Teaching — Session End Card (极简片段)
+  用法：
+  1) 在 `ui_session_next` 判断会话已结束时，返回本片段，
+     让它通过 OOB 替换行动区（id 必须与页面中的容器一致）。
+  2) 刷新到 /ui/game/<sid>/<hid> 时，如果 Session.status=="ended"，
+     直接在 SSR 中 include 该片段，保持一致（无需 JS）。
+
+  设计：沿用 card/btn 组件与无绿色主题；字段：hands_played、final_stacks、pnl、ended_reason。
+-->
+
+<!-- OOB：替换行动表单（或你的行动容器）。将 id 改成你页面实际容器，如 #action-form 或 #action-zone -->
+<div id="action-form" hx-swap-oob="true" class="card p-4">
+  <div class="flex items-start justify-between gap-3">
+    <div>
+      <div class="text-sm text-[rgb(var(--muted))]">Session Ended</div>
+      <div class="mt-0.5 text-xs text-[rgb(var(--muted))]">{{ ended_reason }}</div>
+    </div>
+    <div class="chip" title="净盈亏 (PnL)">
+      {{ pnl }}
+    </div>
+  </div>
+
+  <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
+    <div class="flex items-center justify-between"><span class="text-[rgb(var(--muted))]">Hands Played</span><span class="font-semibold">{{ hands_played }}</span></div>
+    <div class="flex items-center justify-between"><span class="text-[rgb(var(--muted))]">Final Stacks</span><span class="font-semibold">{{ final_stacks }}</span></div>
+  </div>
+
+  <div class="mt-4 flex items-center gap-2">
+    <a href="/ui/start" class="btn btn-primary" data-testid="btn-new-session">Start New Session</a>
+    <a href="/api/v1/ui/review/{{ session_id }}/{{ last_hand_id }}" class="btn btn-ghost" data-testid="btn-view-last">View Last Hand</a>
+    <!-- 可选：复制 Session ID（无框按钮）-->
+    <button type="button" class="btn btn-ghost" data-testid="btn-copy-sid" onclick="navigator.clipboard?.writeText('{{ session_id }}').then(()=>{this.innerText='Copied'; setTimeout(()=>this.innerText='Copy Session ID',1200)})">Copy Session ID</button>
+  </div>
+</div>
+
+<!-- OOB：如果当前页面存在“Start Next Hand”按钮（例如结算页底栏），在会话已结束时隐藏它 -->
+<span id="btn-next" hx-swap-oob="true" class="hidden"></span>

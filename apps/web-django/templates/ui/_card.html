@@ -1,0 +1,53 @@
+{% comment %} Reusable playing-card component wrapper (CardMeister) {% endcomment %}
+{% with sz=size|default:'md' %}
+  {% if sz == 'lg' %}
+    {% with w='var(--card-lg)' %}
+      {% if facedown or not cid %}
+        <playing-card cid="?"
+                      suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F"
+                      backcolor="#0B0B0F"
+                      style="width: {{ w }}"
+></playing-card>
+      {% else %}
+        <playing-card cid="{{ cid }}"
+                      suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F"
+                      backcolor="#0B0B0F"
+                      style="width: {{ w }}"
+></playing-card>
+      {% endif %}
+    {% endwith %}
+  {% elif sz == 'sm' %}
+    {% with w='var(--card-sm)' %}
+      {% if facedown or not cid %}
+        <playing-card cid="?"
+                      suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F"
+                      backcolor="#0B0B0F"
+                      style="width: {{ w }}"
+></playing-card>
+      {% else %}
+        <playing-card cid="{{ cid }}"
+                      suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F"
+                      backcolor="#0B0B0F"
+                      style="width: {{ w }}"
+></playing-card>
+      {% endif %}
+    {% endwith %}
+  {% else %}
+    {% with w='var(--card-md)' %}
+      {% if facedown or not cid %}
+        <playing-card cid="?"
+                      suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F"
+                      backcolor="#0B0B0F"
+                      style="width: {{ w }}"
+></playing-card>
+      {% else %}
+        <playing-card cid="{{ cid }}"
+                      suitcolor="#0B0B0F,#E11D48,#E11D48,#0B0B0F"
+                      backcolor="#0B0B0F"
+                      style="width: {{ w }}"
+></playing-card>
+      {% endif %}
+    {% endwith %}
+  {% endif %}
+{% endwith %}
+

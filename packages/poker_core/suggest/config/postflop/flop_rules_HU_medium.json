@@ -1,0 +1,467 @@
+{
+  "single_raised": {
+    "role": {
+      "pfr": {
+        "ip": {
+          "dry": {
+            "defaults": {"action": "bet", "size_tag": "third"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "pot"},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "two_third"},
+              "top_pair_weak_or_second_pair": {"action": "bet", "size_tag": "third"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "third"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "third", "facing": {"third": {"action": "raise", "size_tag": "half", "plan": "value raise vs small"}, "half": {"action": "raise", "size_tag": "two_third", "plan": "value raise vs half"}, "two_third_plus": {"action": "call"}}},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "third"},
+              "top_pair_weak_or_second_pair": {"action": "bet", "size_tag": "third"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "third"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "ge6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "third", "facing": {"third": {"action": "raise", "size_tag": "half", "plan": "value raise vs small"}, "half": {"action": "raise", "size_tag": "two_third", "plan": "value raise vs half"}, "two_third_plus": {"action": "call"}}},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "third"},
+              "top_pair_weak_or_second_pair": {"action": "check", "plan": "delay c-bet on safe turns"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "third"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            }
+          },
+          "semi": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "pot"},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "half"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "two_third", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "half", "plan": "bet big; barrel safe turns", "facing": {"third": {"action": "raise", "size_tag": "two_third", "plan": "value raise vs small"}, "half": {"action": "raise", "size_tag": "two_third", "plan": "value raise vs half"}, "two_third_plus": {"action": "call"}}},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "half"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "ge6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "half"},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "half"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            }
+          },
+          "wet": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "pot"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "two_third"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third", "plan": "bet big; barrel safe turns", "facing": {"third": {"action": "raise", "size_tag": "two_third", "plan": "value raise vs small"}, "half": {"action": "raise", "size_tag": "two_third", "plan": "value raise vs half"}, "two_third_plus": {"action": "call"}}},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "two_third"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "ge6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third", "facing": {"third": {"action": "raise", "size_tag": "half", "plan": "value raise vs small"}, "half": {"action": "raise", "size_tag": "two_third", "plan": "value raise vs half"}, "two_third_plus": {"action": "call"}}},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "two_third"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            }
+          }
+        },
+        "oop": {
+          "dry": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "two_third"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check", "plan": "vs small/half → call; vs two_third+ → raise"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "third"},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "third"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check", "plan": "vs small/half → call; vs two_third+ → raise"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "ge6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "third"},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "third"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check", "plan": "vs small/half → call; vs two_third+ → raise"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            }
+          },
+          "semi": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "half"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "half"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check", "plan": "vs small/half → call; vs two_third+ → raise"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "ge6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "half"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            }
+          },
+          "wet": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "pot", "plan": "bet big; barrel safe turns"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "ge6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            }
+          }
+        }
+      },
+      "caller": {
+        "ip": {
+          "dry": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "half"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "third"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "ge6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "half"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "third"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            }
+          },
+          "semi": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "ge6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            }
+          },
+          "wet": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "ge6": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            }
+          }
+        },
+        "oop": {
+          "dry": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "half"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {
+              "value_two_pair_plus": {"action": "check"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "ge6": {
+              "value_two_pair_plus": {"action": "check"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            }
+          },
+          "semi": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "half"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "bet/call vs small; fold vs pot"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {
+              "value_two_pair_plus": {"action": "check"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "ge6": {
+              "value_two_pair_plus": {"action": "check"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            }
+          },
+          "wet": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "pot"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {
+              "value_two_pair_plus": {"action": "check"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "ge6": {
+              "value_two_pair_plus": {"action": "check"},
+              "overpair_or_top_pair_strong": {"action": "check"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "check"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            }
+          }
+        }
+      }
+    }
+  }
+  ,
+  "limped": {
+    "role": {
+      "na": {
+        "ip": {
+          "dry": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "half"},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "third"},
+              "top_pair_weak_or_second_pair": {"action": "check", "plan": "delay c-bet on safe turns"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "strong_draw": {"action": "bet", "size_tag": "third"},
+              "weak_draw_or_air": {"action": "check", "plan": "check; stab turns that miss"}
+            },
+            "3to6": {"defaults": {"action": "check"}},
+            "ge6": {"defaults": {"action": "check"}}
+          },
+          "semi": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "strong_draw": {"action": "bet", "size_tag": "half"}
+            }
+          },
+          "wet": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "pot", "plan": "bet big; barrel safe turns"},
+              "strong_draw": {"action": "bet", "size_tag": "half"}
+            }
+          }
+        },
+        "oop": {
+          "dry": {"defaults": {"action": "check"}},
+          "semi": {
+            "defaults": {"action": "check"},
+            "le3": {"strong_draw": {"action": "bet", "size_tag": "half", "plan": "lead half; continue on safe turns"}}
+          },
+          "wet": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "pot", "plan": "bet big; barrel safe turns"},
+              "strong_draw": {"action": "bet", "size_tag": "half"}
+            }
+          }
+        }
+      }
+    }
+  }
+  ,
+  "threebet": {
+    "role": {
+      "pfr": {
+        "ip": {
+          "dry": {
+            "defaults": {"action": "bet", "size_tag": "half", "plan": "polarize; pressure with mid-large sizing"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "pot", "facing": {"third": {"action": "raise", "size_tag": "half", "plan": "value raise vs small"}, "half": {"action": "raise", "size_tag": "half", "plan": "value raise vs half"}, "two_third_plus": {"action": "call"}}},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "two_third"},
+              "strong_draw": {"action": "bet", "size_tag": "half"},
+              "top_pair_weak_or_second_pair": {"action": "check"},
+              "middle_pair_or_third_pair_minus": {"action": "check"},
+              "weak_draw_or_air": {"action": "check"}
+            },
+            "3to6": {"defaults": {"action": "bet", "size_tag": "two_third"}},
+            "ge6": {"defaults": {"action": "bet", "size_tag": "half"}}
+          },
+          "semi": {
+            "defaults": {"action": "bet", "size_tag": "two_third"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "pot", "facing": {"third": {"action": "raise", "size_tag": "two_third", "plan": "value raise vs small"}, "half": {"action": "raise", "size_tag": "two_third", "plan": "value raise vs half"}, "two_third_plus": {"action": "call"}}},
+              "strong_draw": {"action": "bet", "size_tag": "two_third"}
+            }
+          },
+          "wet": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "pot", "facing": {"third": {"action": "raise", "size_tag": "two_third", "plan": "value raise vs small"}, "half": {"action": "raise", "size_tag": "two_third", "plan": "value raise vs half"}, "two_third_plus": {"action": "call"}}},
+              "strong_draw": {"action": "bet", "size_tag": "two_third"}
+            }
+          }
+        },
+        "oop": {
+          "dry": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "overpair_or_top_pair_strong": {"action": "bet", "size_tag": "two_third"},
+              "strong_draw": {"action": "bet", "size_tag": "half", "plan": "lead half; continue on safe turns"}
+            }
+          },
+          "semi": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "strong_draw": {"action": "bet", "size_tag": "half"}
+            }
+          },
+          "wet": {"defaults": {"action": "check"}}
+        }
+      },
+      "caller": {
+        "ip": {
+          "dry": {
+            "defaults": {"action": "check"},
+            "le3": {
+              "value_two_pair_plus": {"action": "bet", "size_tag": "two_third"},
+              "strong_draw": {"action": "bet", "size_tag": "half"}
+            }
+          },
+          "semi": {
+            "defaults": {"action": "check"},
+            "le3": {"strong_draw": {"action": "bet", "size_tag": "half"}}
+          },
+          "wet": {"defaults": {"action": "check"}}
+        },
+        "oop": {
+          "dry": {"defaults": {"action": "check"}},
+          "semi": {"defaults": {"action": "check"}},
+          "wet": {"defaults": {"action": "check"}}
+        }
+      }
+    }
+  }
+}
