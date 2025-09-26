@@ -33,7 +33,7 @@
 - DoD
   - 单测通过；三文件存在且 schema 符合；同种子构建一致。
 
-### 任务 A2：转移矩阵 tools.estimate_transitions（含采样语义/对手分布）
+### ✅ 任务 A2：转移矩阵 tools.estimate_transitions（含采样语义/对手分布）
 - 先写的测试
   - `tests/test_tools_transitions.py`
     - `test_transitions_row_stochastic()`：`flop→turn`、`turn→river` 行和≈1（±1e-6）。
