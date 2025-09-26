@@ -10,7 +10,7 @@
 
 ## A. Bucketing & Transitions（离线产物）
 
-### 任务 A1：分桶工具 tools.build_buckets（含 6-8-8 桶语义）
+### ✅ 任务 A1：分桶工具 tools.build_buckets（含 6-8-8 桶语义）
 - 先写的测试
   - `tests/test_tools_buckets.py`
     - `test_build_buckets_creates_files_and_schema()`：调用构建（通过函数或 `-m`），断言生成 `configs/buckets/preflop.json, flop.json, turn.json`，并包含 `version:int, bins:int, features:list[str]`，三街 `bins=6/8/8`。
