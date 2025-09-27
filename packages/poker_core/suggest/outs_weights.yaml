@@ -1,0 +1,13 @@
+{
+  "fallback_tolerance": 0.12,
+  "defaults": {
+    "outs": 8,
+    "per_out": 0.021
+  },
+  "quality_weights": {
+    "standard": 1.0,
+    "flush": 1.05,
+    "straight": 0.95,
+    "gutshot": 0.6
+  }
+}

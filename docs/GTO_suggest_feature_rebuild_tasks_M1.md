@@ -47,7 +47,7 @@
 - DoD
   - 行归一化；TV 阈值通过；单测通过。
 
-### 任务 A3：下注树生成 tools.build_tree（含最小 schema 与尺寸映射）
+### ✅ 任务 A3：下注树生成 tools.build_tree（含最小 schema 与尺寸映射）
 - 先写的测试
   - `tests/test_tools_tree_build.py`
     - `test_tree_build_generates_flat_json()`：产出 `artifacts/tree_flat.json`，包含节点数组与边引用。
@@ -66,7 +66,7 @@
 - DoD
   - 结构/2‑cap 校验通过；单测通过。
 
-### 任务 A4：Turn 叶子 EV 缓存 tools.cache_turn_leaf_ev
+### ✅ 任务 A4：Turn 叶子 EV 缓存 tools.cache_turn_leaf_ev
 - 先写的测试
   - `tests/test_tools_ev_cache.py`
     - `test_turn_leaf_cache_npz_shapes()`：`turn_leaf.npz` 含必要数组（如 `ev`）且尺寸匹配 turn 桶；元信息包含 `derived_from_turn_leaf=true`。
@@ -82,7 +82,7 @@
 
 ---
 
-### 任务 A5：离线流水线冒烟（A1→A4 一键校验）
+### ✅ 任务 A5：离线流水线冒烟（A1→A4 一键校验）
 - 先写的测试
   - `tests/test_tools_smoke_m1.py`
     - `test_smoke_runs_and_generates_report()`：调用 `-m tools.m1_smoke --quick --out reports/m1_smoke.md`，断言返回码为 0、报告文件存在且含“PASS”。
@@ -107,7 +107,7 @@
 - DoD
   - 在全新环境下仅凭本命令可产出全部 A1–A4 产物并生成报告；报告首行含“PASS”。
 
-### 任务 A6：HS/Potential 查表产物（供运行时快速查询）
+### ✅ 任务 A6：HS/Potential 查表产物（供运行时快速查询）
 - 先写的测试
   - `tests/test_lookup_tables.py`
     - `test_lookup_files_exist_and_shapes()`：生成 `artifacts/lookup/{hs_*,pot_*}.npz`，包含 `values` 与键域元信息（`meta:{street,texture,spr_bin,bucket}`）。
