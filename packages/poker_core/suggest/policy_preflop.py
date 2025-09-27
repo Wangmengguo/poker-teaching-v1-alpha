@@ -11,10 +11,7 @@ from poker_core.suggest.context import SuggestContext
 from poker_core.suggest.decision import Decision, SizeSpec
 from poker_core.suggest.preflop_tables import bucket_facing_size
 from poker_core.suggest.types import Observation, PolicyConfig
-from poker_core.suggest.utils import (
-    find_action,
-    pick_betlike_action,
-)
+from poker_core.suggest.utils import find_action, pick_betlike_action
 
 from .calculators import pot_odds
 

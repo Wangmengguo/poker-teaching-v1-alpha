@@ -69,3 +69,7 @@ pythonpath = ["."]
 
 [tool.coverage.report]
 show_missing = true
+
+[tool.mypy]
+mypy_path = "packages"
+packages = ["poker_core"]

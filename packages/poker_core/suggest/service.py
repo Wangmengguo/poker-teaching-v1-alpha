@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 from collections.abc import Callable
+from numbers import Real
 from typing import Any
 
 from poker_core.analysis import annotate_player_hand_from_gs
@@ -101,6 +103,74 @@ def _clamp_amount_if_needed(
         False,
         {"min": int(lo), "max": int(hi), "given": int(amt), "chosen": int(amt)},
     )
+
+
+def _describe_frequency(freq: Any) -> str | None:
+    """Convert a numeric or textual frequency into a natural-language snippet."""
+
+    if freq is None:
+        return None
+
+    value: float | None = None
+
+    try:
+        if isinstance(freq, str):
+            text = freq.strip()
+            if not text:
+                return None
+            if "/" in text and "%" not in text:
+                # Support fractions like "1/3"
+                num, _, denom = text.partition("/")
+                value = float(num) / float(denom) if denom else None
+            else:
+                cleaned = text.replace("%", "")
+                value = float(cleaned)
+                if "%" in text or value > 1.0:
+                    value /= 100.0
+        elif isinstance(freq, Real) or hasattr(freq, "__float__"):
+            try:
+                value = float(freq)
+            except Exception:
+                return None
+        else:
+            return None
+    except Exception:
+        return None
+
+    if value is None or not math.isfinite(value):
+        return None
+
+    if value < 0:
+        value = 0.0
+    if value > 1:
+        value = 1.0
+
+    pct_float = value * 100.0
+    pct = int(round(pct_float))
+    pct = max(0, min(100, pct))
+    is_tiny_positive = value > 0 and pct == 0
+
+    if pct >= 95:
+        label = "几乎总是"
+    elif pct >= 70:
+        label = "大多数时候"
+    elif pct >= 45:
+        label = "约一半时间"
+    elif pct >= 20:
+        label = "偶尔出现"
+    elif pct >= 5:
+        label = "偶发出现"
+    elif value > 0:
+        label = "极少出现"
+    else:
+        label = "几乎不出现"
+
+    if is_tiny_positive:
+        percent_text = "<1%"
+    else:
+        percent_text = f"{pct}%"
+
+    return f"建议频率：{label}（约 {percent_text}）"
 
 
 # 策略注册表（按版本/街选择）。PR-0：v1 映射到 v0 占位，保证行为不变。
@@ -430,9 +500,14 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
             "action": (resp.get("suggested") or {}).get("action"),
             "amount": (resp.get("suggested") or {}).get("amount"),
         }
-        exp = render_explanations(rationale=rationale, meta=resp.get("meta"), extras=extras)
-        if exp:
-            resp["explanations"] = exp
+        exp_list = list(
+            render_explanations(rationale=rationale, meta=resp.get("meta"), extras=extras)
+        )
+        freq_text = _describe_frequency((resp.get("meta") or {}).get("frequency"))
+        if freq_text:
+            exp_list.append(freq_text)
+        if exp_list:
+            resp["explanations"] = exp_list
     except Exception:
         # Keep optional; never fail the main suggest flow
         pass

@@ -828,6 +828,9 @@ def _policy_postflop_generic(
     spr = _spr_key_for_rules(spr_raw)
     role = getattr(obs, "role", "na") or "na"
     pot_type = getattr(obs, "pot_type", "single_raised") or "single_raised"
+    role_key = role if pot_type != "limped" else "na"
+    base_parts = [pot_type, "role", role_key, ip_key, texture, spr]
+    base_path = "/".join(str(part) for part in base_parts if str(part))
 
     rationale: list[dict[str, Any]] = []
     meta: dict[str, Any] = {
@@ -840,6 +843,7 @@ def _policy_postflop_generic(
         "facing_size_tag": getattr(obs, "facing_size_tag", "na"),
         "rules_ver": ver,
         "plan": None,
+        "rule_path": base_path,
     }
 
     def _lookup_node() -> tuple[dict[str, Any] | None, str]:
@@ -876,6 +880,8 @@ def _policy_postflop_generic(
     # 1) No bet yet: use table or safe default
     if to_call == 0:
         node, rule_path = _lookup_node()
+        if rule_path:
+            meta["rule_path"] = rule_path
         if node:
             action = str(node.get("action") or "bet")
             size_tag = str(node.get("size_tag") or "third")
@@ -913,6 +919,12 @@ def _policy_postflop_generic(
             return suggested, rationale + drat, f"{street}_v1", meta
 
     # 2) Facing a bet: expose MDF/pot_odds; choose simple line
+    facing_key = str(meta.get("facing_size_tag") or "na")
+    if not meta.get("rule_path") or meta.get("rule_path") == base_path:
+        meta["rule_path"] = (
+            f"{base_path}/facing:{facing_key}" if base_path else f"facing:{facing_key}"
+        )
+
     rationale.append(
         R(
             SCodes.FL_MDF_DEFEND,

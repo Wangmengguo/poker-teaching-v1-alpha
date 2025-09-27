@@ -22,14 +22,9 @@ from poker_core.suggest.utils import (
 from poker_core.suggest.utils import is_first_to_act as _is_first_to_act
 from poker_core.suggest.utils import is_ip as _is_ip
 from poker_core.suggest.utils import is_last_to_act as _is_last_to_act
-from poker_core.suggest.utils import (
-    nut_advantage,
-    range_advantage,
-)
+from poker_core.suggest.utils import nut_advantage, range_advantage
 from poker_core.suggest.utils import spr_bucket as _spr_bucket
-from poker_core.suggest.utils import (
-    to_call_from_acts,
-)
+from poker_core.suggest.utils import to_call_from_acts
 
 from .utils import infer_flop_hand_class_from_gs
 
