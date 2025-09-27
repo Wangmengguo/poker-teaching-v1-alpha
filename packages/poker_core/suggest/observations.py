@@ -194,7 +194,12 @@ def _build_observation_common(
         role = "na"
 
     try:
-        combo = combo_from_hole(getattr(hero, "hole", []) if hero is not None else [])
+        hero_hole_cards = tuple(getattr(hero, "hole", []) or []) if hero is not None else ()
+    except Exception:
+        hero_hole_cards = ()
+
+    try:
+        combo = combo_from_hole(list(hero_hole_cards))
     except Exception:
         combo = None
 
@@ -255,6 +260,8 @@ def _build_observation_common(
         pot_type=pot_type,
         last_aggressor=last_aggr,
         context=context,
+        hole=hero_hole_cards,
+        board=tuple(board),
     )
 
     return obs, pre_rationale

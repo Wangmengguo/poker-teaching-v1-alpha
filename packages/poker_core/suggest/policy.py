@@ -21,6 +21,9 @@ from .policy_preflop import decide_bb_defend
 from .policy_preflop import decide_sb_open
 from .policy_preflop import decide_sb_vs_threebet
 from .preflop_tables import bucket_facing_size
+from .river_semantics import analyze_river_context
+from .river_semantics import apply_river_facing_adjustment
+from .river_semantics import apply_river_no_bet_adjustment
 from .turn_river_rules import get_river_rules
 from .turn_river_rules import get_turn_rules
 from .types import Observation
@@ -977,6 +980,12 @@ def _policy_postflop_generic(
         "rule_path": base_path,
     }
 
+    river_ctx: dict[str, Any] = {}
+    if street == "river":
+        river_ctx = analyze_river_context(obs)
+        meta["river_value_tier"] = river_ctx.get("tier", "unknown")
+        meta["river_blockers"] = list(river_ctx.get("blockers") or [])
+
     def _lookup_node() -> tuple[dict[str, Any] | None, str]:
         keys = [
             pot_type,
@@ -1026,16 +1035,27 @@ def _policy_postflop_generic(
                 size_tag = size_default
             if mix_meta:
                 meta.update(mix_meta)
+            plan_override: str | None = None
+            if street == "river":
+                action, size_tag, plan_override = apply_river_no_bet_adjustment(
+                    action, size_tag, river_ctx
+                )
+            if action not in {"bet", "raise"}:
+                size_tag = None
             meta["rule_path"] = mix_meta.get("rule_path", rule_path) if mix_meta else rule_path
             meta["size_tag"] = size_tag
             plan_str = node.get("plan")
             if isinstance(plan_str, str) and plan_str:
                 meta["plan"] = plan_str
+            if plan_override:
+                meta["plan"] = plan_override
             if action in {"bet", "raise"} and (
                 find_action(acts, action) or pick_betlike_action(acts)
             ):
                 decision = Decision(
-                    action=action, sizing=SizeSpec.tag(size_tag), meta={"size_tag": size_tag}
+                    action=action,
+                    sizing=SizeSpec.tag(size_tag or "third"),
+                    meta={"size_tag": size_tag},
                 )
                 suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
                 meta.update(dmeta)
@@ -1076,6 +1096,55 @@ def _policy_postflop_generic(
             },
         )
     )
+    if street == "river":
+        override = apply_river_facing_adjustment(
+            river_ctx, str(meta.get("facing_size_tag") or "na")
+        )
+        if isinstance(override, dict) and override.get("action"):
+            if override.get("plan"):
+                meta["plan"] = override["plan"]
+            override_action = override.get("action")
+            override_size = override.get("size_tag")
+            if override_action in {"call", "fold", "check"}:
+                if override_action == "call" and find_action(acts, "call"):
+                    decision = Decision(action="call", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    meta["size_tag"] = None
+                    return suggested, rationale + drat, f"{street}_v1", meta
+                if override_action == "fold" and find_action(acts, "fold"):
+                    decision = Decision(action="fold", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    meta["size_tag"] = None
+                    return suggested, rationale + drat, f"{street}_v1", meta
+                if override_action == "check" and find_action(acts, "check"):
+                    decision = Decision(action="check", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    meta["size_tag"] = None
+                    return suggested, rationale + drat, f"{street}_v1", meta
+            if override_action in {"bet", "raise"} and override_size:
+                if override_action == "bet" and pick_betlike_action(acts):
+                    decision = Decision(
+                        action="bet",
+                        sizing=SizeSpec.tag(str(override_size)),
+                        meta={"size_tag": str(override_size)},
+                    )
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    meta["size_tag"] = str(override_size)
+                    return suggested, rationale + drat, f"{street}_v1", meta
+                if override_action == "raise" and find_action(acts, "raise"):
+                    decision = Decision(
+                        action="raise",
+                        sizing=SizeSpec.tag(str(override_size)),
+                        meta={"size_tag": str(override_size)},
+                    )
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    meta["size_tag"] = str(override_size)
+                    return suggested, rationale + drat, f"{street}_v1", meta
     # value raise stub: when hand_class indicates value (inherit flop class semantics if provided)
     if (
         getattr(obs, "hand_class", "") in {HC_VALUE}
