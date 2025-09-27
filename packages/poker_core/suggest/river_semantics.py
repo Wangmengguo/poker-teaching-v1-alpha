@@ -281,6 +281,7 @@ def _is_straight(values: list[int]) -> tuple[bool, int]:
 
 def _tier_from_best(best: dict[str, Any], board: list[str], hole: list[str]) -> str:
     category = best.get("category", "high_card")
+    hero_use = int(best.get("hero_use") or 0)
     if category in {
         "straight_flush",
         "four_kind",
@@ -290,6 +291,8 @@ def _tier_from_best(best: dict[str, Any], board: list[str], hole: list[str]) -> 
         "three_kind",
         "two_pair",
     }:
+        if hero_use == 0:
+            return "weak_showdown"
         return "strong_value"
 
     board_values = sorted({RANK_ORDER.get(parse_card(card)[0], 0) for card in board}, reverse=True)
@@ -299,7 +302,6 @@ def _tier_from_best(best: dict[str, Any], board: list[str], hole: list[str]) -> 
 
     if category == "one_pair":
         pair_rank = (best.get("primary_ranks") or [0])[0]
-        hero_use = int(best.get("hero_use") or 0)
         pocket_pair = len(set(hero_vals)) == 1 and len(hero_vals) == 2
         if pocket_pair and hero_vals[0] > board_top:
             return "strong_value"
