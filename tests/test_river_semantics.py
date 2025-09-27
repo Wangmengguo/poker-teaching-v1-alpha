@@ -21,8 +21,15 @@ def _mk_obs(hole: list[str], board: list[str]) -> Observation:
     )
 
 
-def test_board_made_monster_downgrades_to_weak_showdown():
+def test_board_made_nuts_remains_strong_value():
     obs = _mk_obs(["9c", "9d"], ["Ah", "Kh", "Qh", "Jh", "Th"])
+    ctx = analyze_river_context(obs)
+    assert ctx["tier"] == "strong_value"
+    assert ctx["combo"]["hero_use"] == 0
+
+
+def test_board_made_strong_but_vulnerable_is_weak_showdown():
+    obs = _mk_obs(["9c", "9d"], ["2h", "3h", "4h", "5h", "9h"])
     ctx = analyze_river_context(obs)
     assert ctx["tier"] == "weak_showdown"
     assert ctx["combo"]["hero_use"] == 0

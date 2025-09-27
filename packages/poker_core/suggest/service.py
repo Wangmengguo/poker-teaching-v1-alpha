@@ -36,6 +36,31 @@ from .utils import size_to_amount
 from .utils import stable_roll
 
 
+def _infer_amount_from_legal_actions(action: str | None, acts: list[LegalAction]) -> int | None:
+    """Derive a legal amount for fallback suggestions lacking sizing."""
+
+    if not action:
+        return None
+
+    spec = next((a for a in acts if a.action == action), None)
+    if not spec:
+        return None
+
+    try:
+        if action in {"bet", "raise", "allin"}:
+            # Prefer the minimum legal amount so downstream clamps remain valid.
+            if spec.min is not None:
+                return int(spec.min)
+            if spec.max is not None:
+                return int(spec.max)
+        elif action == "call" and spec.to_call is not None:
+            return int(spec.to_call)
+    except Exception:
+        return None
+
+    return None
+
+
 def _build_observation(gs, actor: int, acts: list[LegalAction]):
     """向后兼容的别名，用于测试文件"""
     return build_observation(gs, actor, acts, annotate_fn=annotate_player_hand_from_gs)
@@ -340,6 +365,10 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
                     )
                 if amt is not None:
                     suggested["amount"] = int(amt)
+        if suggested and suggested.get("amount") is None:
+            inferred_amt = _infer_amount_from_legal_actions(suggested.get("action"), acts)
+            if inferred_amt is not None:
+                suggested["amount"] = inferred_amt
         # Min-reopen lift for postflop raise sizing (to-amount semantics)
         if suggested and suggested.get("action") == "raise" and suggested.get("amount") is not None:
             try:

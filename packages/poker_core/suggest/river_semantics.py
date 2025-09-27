@@ -292,6 +292,8 @@ def _tier_from_best(best: dict[str, Any], board: list[str], hole: list[str]) -> 
         "two_pair",
     }:
         if hero_use == 0:
+            if _board_combo_is_nuts(best):
+                return "strong_value"
             return "weak_showdown"
         return "strong_value"
 
@@ -318,6 +320,19 @@ def _tier_from_best(best: dict[str, Any], board: list[str], hole: list[str]) -> 
         return "air"
 
     return "air"
+
+
+def _board_combo_is_nuts(best: dict[str, Any]) -> bool:
+    """Return True if the board alone makes an unbeatable hand."""
+
+    category = best.get("category")
+    if category == "straight_flush":
+        high = (best.get("primary_ranks") or [0])[0]
+        return high == 14
+    if category == "four_kind":
+        kicker = (best.get("kickers") or [0])[0]
+        return kicker == 14
+    return False
 
 
 def _detect_blockers(hole: list[str], board: list[str]) -> list[str]:
