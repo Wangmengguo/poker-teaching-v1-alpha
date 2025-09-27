@@ -330,8 +330,14 @@ def _board_combo_is_nuts(best: dict[str, Any]) -> bool:
         high = (best.get("primary_ranks") or [0])[0]
         return high == 14
     if category == "four_kind":
+        quad_rank = (best.get("primary_ranks") or [0])[0]
         kicker = (best.get("kickers") or [0])[0]
-        return kicker == 14
+        max_rank = max(RANK_ORDER.values())
+        if quad_rank == max_rank:
+            lower_ranks = [v for v in set(RANK_ORDER.values()) if v < quad_rank]
+            highest_available = max(lower_ranks) if lower_ranks else 0
+            return kicker >= highest_available
+        return kicker == max_rank
     return False
 
 

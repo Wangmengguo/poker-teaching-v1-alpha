@@ -40,3 +40,11 @@ def test_hero_contribution_keeps_strong_value():
     ctx = analyze_river_context(obs)
     assert ctx["tier"] == "strong_value"
     assert ctx["combo"]["hero_use"] >= 1
+
+
+def test_board_quads_of_aces_are_nuts_even_with_king_kicker():
+    obs = _mk_obs(["2c", "3d"], ["Ah", "Ad", "Ac", "As", "Kh"])
+    ctx = analyze_river_context(obs)
+    assert ctx["combo"]["hero_use"] == 0
+    assert ctx["combo"]["category"] == "four_kind"
+    assert ctx["tier"] == "strong_value"
