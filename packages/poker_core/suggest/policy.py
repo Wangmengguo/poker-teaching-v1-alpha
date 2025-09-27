@@ -661,11 +661,12 @@ def policy_flop_v1(
             action, size_tag, mix_meta = _select_action_from_node(node, obs, rule_path)
             action = action or action_default
             if action in {"bet", "raise"}:
-                size_tag = size_tag or size_default
-            elif size_tag is None and node.get("size_tag"):
-                size_tag = str(node.get("size_tag"))
-            if size_tag is None:
-                size_tag = size_default
+                if size_tag is None and node.get("size_tag"):
+                    size_tag = str(node.get("size_tag"))
+                if size_tag is None:
+                    size_tag = size_default
+            else:
+                size_tag = None
             meta.setdefault("rule_path", rule_path)
             if mix_meta:
                 meta.update(mix_meta)
@@ -677,7 +678,7 @@ def policy_flop_v1(
             if action in {"bet", "raise"}:
                 decision = Decision(
                     action=action,
-                    sizing=SizeSpec.tag(size_tag),
+                    sizing=SizeSpec.tag(size_tag or "third"),
                     meta={"size_tag": size_tag},
                 )
                 suggested, decision_meta, decision_rationale = decision.resolve(obs, acts, cfg)

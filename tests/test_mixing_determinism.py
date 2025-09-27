@@ -151,3 +151,20 @@ def test_meta_mix_and_frequency_emitted(monkeypatch, mixed_rules):
     node_key = meta.get("node_key")
     assert isinstance(node_key, str) and node_key.startswith("flop|single_raised|pfr|ip|")
     assert isinstance(meta.get("rule_path"), str)
+
+
+def test_mixing_on_check_clears_size_tag(monkeypatch, mixed_rules):
+    monkeypatch.setenv("SUGGEST_MIXING", "on")
+    acts = [LegalAction("bet", min=50, max=400), LegalAction("check")]
+    obs = _make_obs(acts)
+
+    monkeypatch.setattr(
+        "poker_core.suggest.policy.stable_weighted_choice",
+        lambda key, weights: 1,
+    )
+
+    suggested, rationale, policy_name, meta = policy_flop_v1(obs, PolicyConfig())
+
+    assert policy_name == "flop_v1"
+    assert suggested["action"] == "check"
+    assert meta.get("size_tag") is None

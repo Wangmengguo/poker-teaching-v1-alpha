@@ -443,6 +443,25 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
     meta_dict = dict(meta_from_policy or {})
     meta_dict.setdefault("baseline", "GTO")
     meta_dict.setdefault("mode", "GTO")
+    street = str(getattr(obs, "street", "") or "").strip().lower()
+    size_val = meta_dict.get("size_tag")
+    if isinstance(size_val, str):
+        size_val = size_val.strip()
+
+    if street == "preflop":
+        # Preflop 策略不应返回 size_tag；若策略层未设置则从 meta 中移除，保持兼容旧快照。
+        if not size_val:
+            meta_dict.pop("size_tag", None)
+    else:
+        # Postflop：确保 meta.size_tag 始终为非空字符串
+        if not size_val:
+            suggested_size_tag = None
+            if suggested and suggested.get("action") in {"bet", "raise"}:
+                if isinstance(suggested.get("size_tag"), str):
+                    suggested_size_tag = str(suggested["size_tag"]).strip()
+            # 默认占位符：当策略未提供或选择了非下注动作时，使用 "na"
+            size_val = suggested_size_tag or "na"
+        meta_dict["size_tag"] = str(size_val)
     if "node_key" not in meta_dict:
         try:
             meta_dict["node_key"] = node_key_from_observation(obs)
@@ -465,9 +484,15 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
             c in {"CFG_FALLBACK_USED", "PF_NO_LEGAL_RAISE", "PF_LIMP_COMPLETE_BLIND"} for c in codes
         )
         meta_all = resp.get("meta") or {}
+        size_meta = meta_all.get("size_tag")
+        size_is_mainline = (
+            isinstance(size_meta, str)
+            and size_meta.strip()
+            and size_meta.strip().lower() not in {"na", "n/a"}
+        )
         hit_mainline = (
             str(resp.get("policy")) == "flop_v1"
-            and (meta_all.get("size_tag") is not None)
+            and size_is_mainline
             and int(getattr(obs, "to_call", 0) or 0) == 0
         )
         has_plan = (

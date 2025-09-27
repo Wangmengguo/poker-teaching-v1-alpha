@@ -3,7 +3,8 @@
     "FL_MDF_DEFEND"
   ],
   "meta": {
-    "rule_path": "single_raised/role/caller/oop/dry/ge6/facing:half"
+    "rule_path": "single_raised/role/caller/oop/dry/ge6/facing:half",
+    "size_tag": "na"
   },
   "policy": "river_v1",
   "suggested": {
