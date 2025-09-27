@@ -13,7 +13,7 @@ import numpy as np
 LOOKUP_ROOT = Path(
     os.getenv(
         "POKER_LOOKUP_ROOT",
-        Path(__file__).resolve().parents[2] / "artifacts" / "lookup",
+        Path(__file__).resolve().parents[3] / "artifacts" / "lookup",
     )
 )
 OUTS_CONFIG_PATH = Path(__file__).resolve().parent / "outs_weights.yaml"
