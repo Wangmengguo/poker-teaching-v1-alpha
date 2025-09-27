@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from tools import m1_smoke
 
 

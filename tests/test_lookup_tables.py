@@ -3,8 +3,8 @@ from pathlib import Path
 
 import numpy as np
 
-from tools import build_lookup
 from packages.poker_core.suggest import lookup
+from tools import build_lookup
 
 LOOKUP_DIR = Path("artifacts/lookup")
 

@@ -3,7 +3,6 @@ from pathlib import Path
 
 from tools import build_tree
 
-
 CONFIG_PATH = Path("configs/trees/hu_discrete_2cap.yaml")
 CLASSIFIERS_PATH = Path("configs/classifiers.yaml")
 
