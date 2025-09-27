@@ -1,0 +1,98 @@
+{
+  "street": "flop",
+  "version": 1,
+  "bins": 8,
+  "features": [
+    "strength",
+    "potential"
+  ],
+  "labels": [
+    "value_two_pair_plus",
+    "overpair_or_tptk",
+    "top_pair_weak_or_second",
+    "middle_pair_or_third_minus",
+    "strong_draw",
+    "weak_draw",
+    "overcards_no_bdfd",
+    "air"
+  ],
+  "match_order": [
+    "value_two_pair_plus",
+    "overpair_or_tptk",
+    "top_pair_weak_or_second",
+    "middle_pair_or_third_minus",
+    "strong_draw",
+    "weak_draw",
+    "overcards_no_bdfd",
+    "air"
+  ],
+  "rules": [
+    {
+      "label": "value_two_pair_plus",
+      "description": "Two pair or better using at least one hole card (includes sets/full house).",
+      "conditions": [
+        "hero_trips_or_better",
+        "hero_pairs_two_distinct_board_ranks",
+        "pocket_pair_plus_board_pair"
+      ]
+    },
+    {
+      "label": "overpair_or_tptk",
+      "description": "Pocket pair higher than top board card or top pair with top kicker (Q+).",
+      "conditions": [
+        "pocket_pair_above_board",
+        "top_pair_top_kicker"
+      ]
+    },
+    {
+      "label": "top_pair_weak_or_second",
+      "description": "Top pair with weaker kicker, or second pair showdown value.",
+      "conditions": [
+        "top_pair_sub_top_kicker",
+        "second_pair"
+      ]
+    },
+    {
+      "label": "middle_pair_or_third_minus",
+      "description": "Third pair or pocket pair under the board providing marginal showdown value.",
+      "conditions": [
+        "third_pair",
+        "underpair_using_pocket_pair"
+      ]
+    },
+    {
+      "label": "strong_draw",
+      "description": "Flush draw or open-ended straight draw (including combo draws).",
+      "conditions": [
+        "flush_draw",
+        "open_ended_straight_draw"
+      ]
+    },
+    {
+      "label": "weak_draw",
+      "description": "Gutshot straight draw or backdoor flush draw without stronger made hand.",
+      "conditions": [
+        "gutshot",
+        "backdoor_flush_draw"
+      ]
+    },
+    {
+      "label": "overcards_no_bdfd",
+      "description": "Two overcards to the board with no backdoor flush draw available.",
+      "conditions": [
+        "two_overcards",
+        "no_backdoor_flush_draw"
+      ]
+    },
+    {
+      "label": "air",
+      "description": "Hands that do not meet any made hand or draw criteria above.",
+      "conditions": [
+        "fallback"
+      ]
+    }
+  ],
+  "meta": {
+    "seed": 42
+  }
+}

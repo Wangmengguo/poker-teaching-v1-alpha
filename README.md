@@ -106,7 +106,7 @@ export SUGGEST_TABLE_MODE=HU
 - UI：`apps/web-django/templates/ui/`（错误/HUD/牌面/座位/日志/动作/金额/Coach）
 
 — 测试与验证（Test） —
-- 单元与集成：`pytest -q` 覆盖 calculators/context/observations/策略子模块/Decision/服务整合。
+- 单元与集成：`python -m pytest -q` 覆盖 calculators/context/observations/策略子模块/Decision/服务整合。
 - 快照回归：`tests/test_suggest_snapshots.py`（含 preflop/flop/turn/river 典型场景）。
 - Turn/River 规则命中：`tests/test_turn_river_rulepath.py` 断言 `rule_path` 使用 `le3|3to6|ge6`。
 - 规则检查（可选）：`python scripts/check_flop_rules.py --all`、`node scripts/check_preflop_ranges.js --dir packages/poker_core/suggest/config`。

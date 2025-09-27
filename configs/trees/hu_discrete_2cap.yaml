@@ -1,0 +1,301 @@
+{
+  "meta": {
+    "game": "hu_nlhe",
+    "variant": "cash",
+    "blinds": {"sb": 50, "bb": 100},
+    "effective_stack_bb": 100,
+    "spr_bins": {
+      "edges": [0, 3, 6, 999],
+      "labels": ["low", "mid", "high"]
+    },
+    "texture_tags": ["dry", "semi", "wet"],
+    "max_raise_cap": 2
+  },
+  "nodes": [
+    {
+      "id": "pre_root",
+      "street": "preflop",
+      "role": "sb",
+      "facing": "none",
+      "parent": null,
+      "rcap": {"raises": 0},
+      "actions": [
+        {"name": "fold", "next": "terminal_fold_pre"},
+        {"name": "call", "next": "flop_single"},
+        {"name": "raise", "size_tag": "open_2.5bb", "next": "pre_3bet"}
+      ]
+    },
+    {
+      "id": "pre_3bet",
+      "street": "preflop",
+      "role": "bb",
+      "facing": "raise",
+      "parent": "pre_root",
+      "rcap": {"raises": 1},
+      "actions": [
+        {"name": "fold", "next": "terminal_win_pre"},
+        {"name": "call", "next": "flop_threebet"},
+        {"name": "raise", "size_tag": "three_bet", "next": "pre_4bet"}
+      ]
+    },
+    {
+      "id": "pre_4bet",
+      "street": "preflop",
+      "role": "sb",
+      "facing": "raise",
+      "parent": "pre_3bet",
+      "rcap": {"raises": 2},
+      "actions": [
+        {"name": "fold", "next": "terminal_win_pre"},
+        {"name": "call", "next": "flop_fourbet"}
+      ]
+    },
+    {
+      "id": "flop_single",
+      "street": "flop",
+      "role": "ip",
+      "facing": "checked",
+      "parent": "pre_root",
+      "rcap": {"raises": 0},
+      "actions": [
+        {"name": "check", "next": "turn_single"},
+        {"name": "bet", "size_tag": "third", "next": "flop_single_raise"}
+      ]
+    },
+    {
+      "id": "flop_single_raise",
+      "street": "flop",
+      "role": "oop",
+      "facing": "bet",
+      "parent": "flop_single",
+      "rcap": {"raises": 1},
+      "actions": [
+        {"name": "call", "next": "turn_single"},
+        {"name": "raise", "size_tag": "half", "next": "flop_single_3bet"}
+      ]
+    },
+    {
+      "id": "flop_single_3bet",
+      "street": "flop",
+      "role": "ip",
+      "facing": "raise",
+      "parent": "flop_single_raise",
+      "rcap": {"raises": 2},
+      "actions": [
+        {"name": "call", "next": "turn_single"},
+        {"name": "fold", "next": "terminal_fold_post"}
+      ]
+    },
+    {
+      "id": "flop_threebet",
+      "street": "flop",
+      "role": "oop",
+      "facing": "none",
+      "parent": "pre_3bet",
+      "rcap": {"raises": 0},
+      "actions": [
+        {"name": "check", "next": "turn_threebet"},
+        {"name": "bet", "size_tag": "third", "next": "flop_threebet_raise"}
+      ]
+    },
+    {
+      "id": "flop_threebet_raise",
+      "street": "flop",
+      "role": "ip",
+      "facing": "bet",
+      "parent": "flop_threebet",
+      "rcap": {"raises": 1},
+      "actions": [
+        {"name": "call", "next": "turn_threebet"},
+        {"name": "raise", "size_tag": "half", "next": "flop_threebet_3bet"}
+      ]
+    },
+    {
+      "id": "flop_threebet_3bet",
+      "street": "flop",
+      "role": "oop",
+      "facing": "raise",
+      "parent": "flop_threebet_raise",
+      "rcap": {"raises": 2},
+      "actions": [
+        {"name": "call", "next": "turn_threebet"},
+        {"name": "fold", "next": "terminal_fold_post"}
+      ]
+    },
+    {
+      "id": "flop_fourbet",
+      "street": "flop",
+      "role": "oop",
+      "facing": "raise",
+      "parent": "pre_4bet",
+      "rcap": {"raises": 0},
+      "actions": [
+        {"name": "check", "next": "turn_fourbet"},
+        {"name": "bet", "size_tag": "third", "next": "flop_fourbet_raise"}
+      ]
+    },
+    {
+      "id": "flop_fourbet_raise",
+      "street": "flop",
+      "role": "ip",
+      "facing": "bet",
+      "parent": "flop_fourbet",
+      "rcap": {"raises": 1},
+      "actions": [
+        {"name": "call", "next": "turn_fourbet"},
+        {"name": "fold", "next": "terminal_fold_post"}
+      ]
+    },
+    {
+      "id": "turn_single",
+      "street": "turn",
+      "role": "ip",
+      "facing": "none",
+      "parent": "flop_single",
+      "rcap": {"raises": 0},
+      "actions": [
+        {"name": "check", "next": "river_single"},
+        {"name": "bet", "size_tag": "half", "next": "turn_single_raise"}
+      ]
+    },
+    {
+      "id": "turn_single_raise",
+      "street": "turn",
+      "role": "oop",
+      "facing": "bet",
+      "parent": "turn_single",
+      "rcap": {"raises": 1},
+      "actions": [
+        {"name": "call", "next": "river_single"},
+        {"name": "fold", "next": "terminal_fold_post"}
+      ]
+    },
+    {
+      "id": "turn_threebet",
+      "street": "turn",
+      "role": "oop",
+      "facing": "none",
+      "parent": "flop_threebet",
+      "rcap": {"raises": 0},
+      "actions": [
+        {"name": "check", "next": "river_threebet"},
+        {"name": "bet", "size_tag": "half", "next": "turn_threebet_raise"}
+      ]
+    },
+    {
+      "id": "turn_threebet_raise",
+      "street": "turn",
+      "role": "ip",
+      "facing": "bet",
+      "parent": "turn_threebet",
+      "rcap": {"raises": 1},
+      "actions": [
+        {"name": "call", "next": "river_threebet"},
+        {"name": "fold", "next": "terminal_fold_post"}
+      ]
+    },
+    {
+      "id": "turn_fourbet",
+      "street": "turn",
+      "role": "oop",
+      "facing": "none",
+      "parent": "flop_fourbet",
+      "rcap": {"raises": 0},
+      "actions": [
+        {"name": "check", "next": "river_fourbet"},
+        {"name": "bet", "size_tag": "half", "next": "turn_fourbet_raise"}
+      ]
+    },
+    {
+      "id": "turn_fourbet_raise",
+      "street": "turn",
+      "role": "ip",
+      "facing": "bet",
+      "parent": "turn_fourbet",
+      "rcap": {"raises": 1},
+      "actions": [
+        {"name": "call", "next": "river_fourbet"},
+        {"name": "fold", "next": "terminal_fold_post"}
+      ]
+    },
+    {
+      "id": "river_single",
+      "street": "river",
+      "role": "ip",
+      "facing": "none",
+      "parent": "turn_single",
+      "rcap": {"raises": 0},
+      "actions": [
+        {"name": "check", "next": "terminal_showdown"},
+        {"name": "bet", "size_tag": "half", "next": "river_single_raise"}
+      ]
+    },
+    {
+      "id": "river_single_raise",
+      "street": "river",
+      "role": "oop",
+      "facing": "bet",
+      "parent": "river_single",
+      "rcap": {"raises": 1},
+      "actions": [
+        {"name": "call", "next": "terminal_showdown"},
+        {"name": "fold", "next": "terminal_fold_post"}
+      ]
+    },
+    {
+      "id": "river_threebet",
+      "street": "river",
+      "role": "oop",
+      "facing": "none",
+      "parent": "turn_threebet",
+      "rcap": {"raises": 0},
+      "actions": [
+        {"name": "check", "next": "terminal_showdown"},
+        {"name": "bet", "size_tag": "half", "next": "river_threebet_raise"}
+      ]
+    },
+    {
+      "id": "river_threebet_raise",
+      "street": "river",
+      "role": "ip",
+      "facing": "bet",
+      "parent": "river_threebet",
+      "rcap": {"raises": 1},
+      "actions": [
+        {"name": "call", "next": "terminal_showdown"},
+        {"name": "fold", "next": "terminal_fold_post"}
+      ]
+    },
+    {
+      "id": "river_fourbet",
+      "street": "river",
+      "role": "oop",
+      "facing": "none",
+      "parent": "turn_fourbet",
+      "rcap": {"raises": 0},
+      "actions": [
+        {"name": "check", "next": "terminal_showdown"},
+        {"name": "bet", "size_tag": "half", "next": "river_fourbet_raise"}
+      ]
+    },
+    {
+      "id": "river_fourbet_raise",
+      "street": "river",
+      "role": "ip",
+      "facing": "bet",
+      "parent": "river_fourbet",
+      "rcap": {"raises": 1},
+      "actions": [
+        {"name": "call", "next": "terminal_showdown"},
+        {"name": "fold", "next": "terminal_fold_post"}
+      ]
+    }
+  ],
+  "terminals": [
+    "terminal_fold_pre",
+    "terminal_win_pre",
+    "terminal_allin",
+    "terminal_fold_post",
+    "terminal_showdown"
+  ]
+}

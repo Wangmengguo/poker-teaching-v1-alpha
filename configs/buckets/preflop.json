@@ -1,0 +1,72 @@
+{
+  "street": "preflop",
+  "version": 1,
+  "bins": 6,
+  "features": [
+    "strength",
+    "potential"
+  ],
+  "labels": [
+    "premium_pair",
+    "strong_broadway",
+    "suited_ace",
+    "medium_pair",
+    "suited_connectors",
+    "junk"
+  ],
+  "match_order": [
+    "premium_pair",
+    "strong_broadway",
+    "suited_ace",
+    "medium_pair",
+    "suited_connectors",
+    "junk"
+  ],
+  "rules": [
+    {
+      "label": "premium_pair",
+      "description": "Pocket pair QQ+ (premium) or better.",
+      "conditions": [
+        "pocket_pair_rank_ge_Q"
+      ]
+    },
+    {
+      "label": "strong_broadway",
+      "description": "Two broadway cards (A/K/Q/J/T) that are not a pocket pair.",
+      "conditions": [
+        "both_cards_broadway"
+      ]
+    },
+    {
+      "label": "suited_ace",
+      "description": "Suited ace that is not already classified as premium/strong broadway.",
+      "conditions": [
+        "ace_suited"
+      ]
+    },
+    {
+      "label": "medium_pair",
+      "description": "Pocket pair TT or below (6 buckets default treat as medium).",
+      "conditions": [
+        "pocket_pair_rank_lt_Q"
+      ]
+    },
+    {
+      "label": "suited_connectors",
+      "description": "Suited consecutive ranks 65s–T9s (connectors).",
+      "conditions": [
+        "suited_consecutive"
+      ]
+    },
+    {
+      "label": "junk",
+      "description": "Hands that do not match any stronger preflop bucket.",
+      "conditions": [
+        "fallback"
+      ]
+    }
+  ],
+  "meta": {
+    "seed": 42
+  }
+}

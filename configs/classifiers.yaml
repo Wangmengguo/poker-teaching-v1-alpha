@@ -1,0 +1,7 @@
+{
+  "spr_bins": {
+    "edges": [0, 3, 6, 999],
+    "labels": ["low", "mid", "high"]
+  },
+  "texture_tags": ["dry", "semi", "wet"]
+}
