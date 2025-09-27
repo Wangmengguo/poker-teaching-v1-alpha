@@ -158,7 +158,7 @@
 - DoD
   - 测试通过；默认关闭不影响 baseline。
 
-### 任务 B3：保守回退（缺失节点/信息缺口）
+### ✅ 任务 B3：保守回退（缺失节点/信息缺口）
 - 先写的测试
   - `tests/test_fallback_minimal.py`
     - `test_missing_rule_triggers_fallback_and_code()`：缺规则时产出合法动作且 rationale 含 `CFG_FALLBACK_USED`。

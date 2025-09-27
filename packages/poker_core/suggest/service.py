@@ -18,6 +18,7 @@ from .codes import mk_rationale as R
 from .context import SuggestContext
 from .decision import Decision
 from .explanations import render_explanations
+from .fallback import choose_conservative_line
 from .policy import (
     policy_flop_v1,
     policy_postflop_v0_3,
@@ -239,36 +240,62 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
 
     # 执行策略
     cfg = cfg or PolicyConfig()
-    suggested: dict[str, Any]
-    out = policy_fn(obs, cfg)
-
-    decision_obj: Decision | None = None
+    suggested: dict[str, Any] = {}
+    rationale: list[dict[str, Any]] = []
     meta_from_policy: dict[str, Any] = {}
+    decision_obj: Decision | None = None
+    policy_name = getattr(policy_fn, "__name__", "unknown")
+    fallback_used = False
+    fallback_meta: dict[str, Any] = {}
+    fallback_rationale: list[dict[str, Any]] = []
 
-    if isinstance(out, Decision):
-        decision_obj = out
-        rationale = []
-        policy_name = "unknown"
-    elif isinstance(out, tuple):
-        if out and isinstance(out[0], Decision):
-            decision_obj = out[0]
-            rationale = list(out[1]) if len(out) > 1 else []  # type: ignore
-            policy_name = str(out[2]) if len(out) > 2 else "unknown"
-            meta_from_policy = dict(out[3]) if len(out) > 3 else {}
-        elif len(out) == 4:
-            suggested, rationale, policy_name, meta_from_policy = out  # type: ignore
-        else:
-            suggested, rationale, policy_name = out  # type: ignore
-            meta_from_policy = {}
+    def _engage_fallback(reason: str | None = None) -> None:
+        nonlocal suggested, fallback_used, fallback_meta, fallback_rationale
+        fb_suggested, fb_meta, fb_rationale = choose_conservative_line(obs, acts)
+        fallback_used = True
+        suggested = fb_suggested
+        fallback_meta.update(fb_meta or {})
+        fallback_rationale.extend(fb_rationale or [])
+        if reason:
+            fallback_meta.setdefault("fallback_reason", reason)
+
+    try:
+        out = policy_fn(obs, cfg)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "policy %s failed; using conservative fallback",
+            getattr(policy_fn, "__name__", "unknown"),
+        )
+        _engage_fallback("policy_exception")
+        out = None
     else:
-        raise ValueError("Policy returned unsupported response type")
+        if isinstance(out, Decision):
+            decision_obj = out
+            rationale = []
+            policy_name = "unknown"
+        elif isinstance(out, tuple):
+            if out and isinstance(out[0], Decision):
+                decision_obj = out[0]
+                rationale = list(out[1]) if len(out) > 1 else []  # type: ignore
+                policy_name = str(out[2]) if len(out) > 2 else "unknown"
+                meta_from_policy = dict(out[3]) if len(out) > 3 else {}
+            elif len(out) == 4:
+                suggested, rationale, policy_name, meta_from_policy = out  # type: ignore
+            else:
+                suggested, rationale, policy_name = out  # type: ignore
+                meta_from_policy = {}
+        else:
+            raise ValueError("Policy returned unsupported response type")
 
     if decision_obj is not None:
         suggested, decision_meta, decision_rationale = decision_obj.resolve(obs, acts, cfg)
         meta_from_policy = {**(decision_meta or {}), **(meta_from_policy or {})}
         rationale = list(rationale or []) + list(decision_rationale or [])
-    else:
+    elif not fallback_used:
         suggested = suggested  # type: ignore  # already set in non-decision branches
+
+    if not fallback_used and not suggested:
+        _engage_fallback("empty_suggestion")
     # 若策略仅返回 size_tag（无金额），在服务层统一换算
     try:
         if (
@@ -337,7 +364,15 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
     # 名称校验
     names = {a.action for a in acts}
     if suggested.get("action") not in names:
-        raise ValueError("Policy produced illegal action")
+        _engage_fallback("illegal_action")
+        if suggested.get("action") not in names:
+            raise ValueError("Policy produced illegal action")
+
+    if fallback_meta:
+        meta_from_policy = {**(meta_from_policy or {}), **fallback_meta}
+
+    if fallback_rationale:
+        rationale = list(rationale or []) + list(fallback_rationale)
 
     # SB 补盲（limp）时确保附带解释码（防止上游遗漏）
     try:
