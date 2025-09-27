@@ -98,6 +98,16 @@ def test_straight_on_board_requires_hero_participation(bucket_configs):
     )
 
 
+def test_wheel_gutshot_stays_weak_draw(bucket_configs):
+    _assert_label(
+        "flop",
+        ["As", "6d"],
+        ["2c", "3d", "4h"],
+        "weak_draw",
+        bucket_configs,
+    )
+
+
 def test_preflop_6bucket_equiv_classes(bucket_configs):
     preflop_cases = [
         ("premium_pair", ["As", "Ah"]),

@@ -296,10 +296,10 @@ def _has_straight(hole_cards: list[str], board_cards: list[str]) -> bool:
     return False
 
 
-def _rank_value_set(cards: list[str]) -> set[int]:
+def _rank_value_set(cards: list[str], include_wheel: bool = True) -> set[int]:
     values = {_rank_value(card) for card in cards}
-    # wheel handling: treat Ace as 1 as well
-    if 14 in values:
+    # wheel handling: treat Ace as 1 as well when requested
+    if include_wheel and 14 in values:
         values.add(1)
     return values
 
@@ -313,7 +313,7 @@ def _has_open_ended_draw(hole_cards: list[str], board_cards: list[str]) -> bool:
     if _has_straight(hole_cards, board_cards):
         return False
     all_vals = sorted(_rank_value_set(hole_cards + board_cards))
-    hero_vals = _rank_value_set(hole_cards)
+    hero_vals = _rank_value_set(hole_cards, include_wheel=False)
     if len(all_vals) < 4 or not hero_vals:
         return False
     for i in range(len(all_vals) - 3):
