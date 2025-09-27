@@ -7,6 +7,8 @@ preflop_v0, postflop_v0_3, preflop_v1
 
 from __future__ import annotations
 
+import os
+from math import isfinite
 from typing import Any
 
 from .codes import SCodes
@@ -23,6 +25,7 @@ from .utils import (
     HC_VALUE,
     find_action,
     pick_betlike_action,
+    stable_weighted_choice,
     to_call_from_acts,
 )
 
@@ -442,11 +445,121 @@ def _match_rule_with_trace(
                 path.append(f"defaults:{k}")
             else:
                 return None, "/".join(path)
-        if isinstance(cur, dict) and ("action" in cur or "size_tag" in cur):
+        if isinstance(cur, dict) and ("action" in cur or "size_tag" in cur or "mix" in cur):
             return cur, "/".join(path)
     except Exception:
         return None, "/".join(path)
     return None, "/".join(path)
+
+
+def _mixing_enabled() -> bool:
+    return (os.getenv("SUGGEST_MIXING") or "off").strip().lower() == "on"
+
+
+def _mix_seed_base(obs: Observation) -> str:
+    mode = (os.getenv("SUGGEST_MIX_SEED") or "hand").strip().lower()
+    if mode == "session":
+        ctx = getattr(obs, "context", None)
+        profile = getattr(ctx, "profile", None) if ctx is not None else None
+        for attr in ("session_id", "config_profile", "strategy_name"):
+            val = getattr(profile, attr, None) if profile is not None else None
+            if val:
+                return str(val)
+    return str(getattr(obs, "hand_id", ""))
+
+
+def _select_action_from_node(
+    node: dict[str, Any] | None,
+    obs: Observation,
+    rule_path: str,
+) -> tuple[str | None, str | None, dict[str, Any]]:
+    if not isinstance(node, dict):
+        return None, None, {}
+
+    meta: dict[str, Any] = {}
+    action = str(node.get("action")) if node.get("action") else None
+    size_tag = str(node.get("size_tag")) if node.get("size_tag") else None
+
+    mix_entries = node.get("mix") if isinstance(node, dict) else None
+    if not isinstance(mix_entries, list) or not mix_entries:
+        if rule_path:
+            meta["node_key"] = rule_path
+        return action, size_tag, meta
+
+    arms: list[dict[str, Any]] = []
+    weights: list[float] = []
+    for entry in mix_entries:
+        if not isinstance(entry, dict):
+            continue
+        act = entry.get("action")
+        if not act:
+            continue
+        try:
+            weight_val = float(entry.get("weight", 0.0))
+        except Exception:
+            weight_val = 0.0
+        if not isfinite(weight_val) or weight_val <= 0:
+            continue
+        arm = {
+            "action": str(act),
+            "size_tag": entry.get("size_tag"),
+            "weight": weight_val,
+        }
+        arms.append(arm)
+        weights.append(weight_val)
+
+    node_key = str(node.get("node_key") or rule_path or "")
+    if node_key:
+        meta["node_key"] = node_key
+    elif rule_path:
+        meta["node_key"] = rule_path
+
+    if not arms:
+        if rule_path:
+            meta.setdefault("node_key", rule_path)
+        return action, size_tag, meta
+
+    total = sum(weights)
+    if total <= 0:
+        normalized = [1.0 if i == 0 else 0.0 for i in range(len(arms))]
+        idx = 0
+    else:
+        normalized = [w / total for w in weights]
+        if _mixing_enabled():
+            seed_base = _mix_seed_base(obs)
+            seed_key = f"{seed_base}:{node_key}" if seed_base else node_key or "mix"
+            idx = stable_weighted_choice(seed_key, weights)
+            idx = max(0, min(idx, len(arms) - 1))
+            meta["frequency"] = normalized[idx]
+            meta["mix"] = {
+                "seed_key": seed_key,
+                "chosen_index": idx,
+                "arms": [
+                    {
+                        "action": arm.get("action"),
+                        "size_tag": arm.get("size_tag"),
+                        "weight": normalized[i],
+                    }
+                    for i, arm in enumerate(arms)
+                ],
+            }
+            if rule_path:
+                meta.setdefault("rule_path", rule_path)
+        else:
+            idx = max(range(len(arms)), key=lambda i: (normalized[i], -i))
+
+    chosen = arms[idx]
+    chosen_action = chosen.get("action")
+    chosen_size = chosen.get("size_tag")
+    if chosen_action:
+        action = str(chosen_action)
+    if chosen_size is not None:
+        size_tag = str(chosen_size)
+
+    if rule_path and "rule_path" not in meta:
+        meta["rule_path"] = rule_path
+
+    return action, size_tag, meta
 
 
 def policy_flop_v1(
@@ -533,9 +646,20 @@ def policy_flop_v1(
             meta.setdefault("rule_path", rule_path)
 
         if node:
-            action = str(node.get("action") or "bet")
-            size_tag = str(node.get("size_tag") or "third")
-            meta["rule_path"] = rule_path
+            action_default = str(node.get("action") or "bet")
+            size_default = str(node.get("size_tag") or "third")
+            action, size_tag, mix_meta = _select_action_from_node(node, obs, rule_path)
+            action = action or action_default
+            if action in {"bet", "raise"}:
+                size_tag = size_tag or size_default
+            elif size_tag is None and node.get("size_tag"):
+                size_tag = str(node.get("size_tag"))
+            if size_tag is None:
+                size_tag = size_default
+            meta.setdefault("rule_path", rule_path)
+            if mix_meta:
+                meta.update(mix_meta)
+            meta["rule_path"] = meta.get("rule_path") or rule_path
             meta["size_tag"] = size_tag
             plan_str = node.get("plan")
             if isinstance(plan_str, str) and plan_str:
@@ -869,9 +993,9 @@ def _policy_postflop_generic(
                 else:
                     return None, "/".join(path)
                 # Early stop if current node already specifies action/sizing
-                if isinstance(cur, dict) and ("action" in cur or "size_tag" in cur):
+                if isinstance(cur, dict) and ("action" in cur or "size_tag" in cur or "mix" in cur):
                     return cur, "/".join(path)
-            if isinstance(cur, dict) and ("action" in cur or "size_tag" in cur):
+            if isinstance(cur, dict) and ("action" in cur or "size_tag" in cur or "mix" in cur):
                 return cur, "/".join(path)
         except Exception:
             return None, "/".join(path)
@@ -883,9 +1007,19 @@ def _policy_postflop_generic(
         if rule_path:
             meta["rule_path"] = rule_path
         if node:
-            action = str(node.get("action") or "bet")
-            size_tag = str(node.get("size_tag") or "third")
-            meta["rule_path"] = rule_path
+            action_default = str(node.get("action") or "bet")
+            size_default = str(node.get("size_tag") or "third")
+            action, size_tag, mix_meta = _select_action_from_node(node, obs, rule_path)
+            action = action or action_default
+            if action in {"bet", "raise"}:
+                size_tag = size_tag or size_default
+            elif size_tag is None and node.get("size_tag"):
+                size_tag = str(node.get("size_tag"))
+            if size_tag is None:
+                size_tag = size_default
+            if mix_meta:
+                meta.update(mix_meta)
+            meta["rule_path"] = mix_meta.get("rule_path", rule_path) if mix_meta else rule_path
             meta["size_tag"] = size_tag
             plan_str = node.get("plan")
             if isinstance(plan_str, str) and plan_str:

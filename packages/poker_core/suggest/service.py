@@ -459,6 +459,12 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
             "facing_size_tag": getattr(obs, "facing_size_tag", "na"),
             "rule_path": (resp.get("meta") or {}).get("rule_path"),
         }
+        mix_debug = (resp.get("meta") or {}).get("mix")
+        if mix_debug:
+            debug_meta["mix"] = mix_debug
+        node_key = (resp.get("meta") or {}).get("node_key")
+        if node_key is not None:
+            debug_meta["node_key"] = node_key
         resp["debug"] = {"meta": debug_meta}
 
     # Structured log for v1 (or when debug enabled), including profile

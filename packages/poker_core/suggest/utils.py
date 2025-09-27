@@ -1,6 +1,7 @@
 # poker_core/suggest/utils.py
 from __future__ import annotations
 
+from collections.abc import Sequence
 from hashlib import sha1
 from math import isfinite
 from typing import Any
@@ -612,3 +613,45 @@ def stable_roll(hand_id: str, pct: int) -> bool:
 def drop_nones(d: dict[str, Any]) -> dict[str, Any]:
     """剔除值为 None 的键（浅层）。"""
     return {k: v for k, v in (d or {}).items() if v is not None}
+
+
+def stable_weighted_choice(seed_key: str, weights: Sequence[float | int]) -> int:
+    """Deterministic weighted sampler based on SHA1(seed_key).
+
+    - Negative/NaN weights are treated as zero.
+    - When all weights are non-positive, returns index 0.
+    - Uses the first 8 bytes of SHA1 as unsigned integer to derive a
+      number in [0, 1), then maps to the cumulative distribution.
+    """
+
+    sanitized: list[float] = []
+    total = 0.0
+    for w in list(weights or []):
+        try:
+            val = float(w)
+        except Exception:
+            val = 0.0
+        if not isfinite(val) or val <= 0:
+            val = 0.0
+        sanitized.append(val)
+        total += val
+
+    if not sanitized:
+        return 0
+
+    if total <= 0:
+        return 0
+
+    digest = sha1((seed_key or "").encode("utf-8")).digest()
+    bucket = int.from_bytes(digest[:8], "big", signed=False)
+    max_val = float(1 << 64)
+    rnd = (bucket % (1 << 64)) / max_val
+    target = rnd * total
+
+    cumulative = 0.0
+    for idx, weight in enumerate(sanitized):
+        cumulative += weight
+        if target < cumulative:
+            return idx
+
+    return len(sanitized) - 1

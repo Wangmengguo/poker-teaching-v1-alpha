@@ -140,7 +140,7 @@
 - DoD
   - 测试通过；解释渲染含频率文本（当提供时）。
 
-### 任务 B2：确定性混合策略（默认关闭）
+### ✅ 任务 B2：确定性混合策略（默认关闭）
 - 先写的测试
   - `tests/test_mixing_determinism.py`
     - `test_stable_weighted_choice_deterministic()`：同 `seed_key/weights` 返回同一索引。
