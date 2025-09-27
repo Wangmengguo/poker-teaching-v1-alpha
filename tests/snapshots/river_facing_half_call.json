@@ -7,6 +7,7 @@
   },
   "policy": "river_v1",
   "suggested": {
-    "action": "call"
+    "action": "call",
+    "amount": 100
   }
 }
