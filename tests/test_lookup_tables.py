@@ -63,3 +63,56 @@ def test_lookup_api_present_and_fallback():
     fallback = lookup.outs_to_river()
     missing = lookup.hs_lookup.get("flop", "unknown_texture", "low", 2)
     assert abs(missing - fallback) < 1e-6
+
+
+def test_outs_to_river_zero_handling():
+    """测试 outs=0 的正确处理 - 这是 poker 中的有效情况（drawing dead）"""
+    # outs=0 应该返回 0.0，而不是默认值
+    result_zero = lookup.outs_to_river(outs=0)
+    assert result_zero == 0.0, f"Expected 0.0 for outs=0, got {result_zero}"
+
+    # 验证质量权重对零outs的影响
+    result_zero_flush = lookup.outs_to_river(outs=0, quality="flush")
+    assert (
+        result_zero_flush == 0.0
+    ), f"Expected 0.0 for outs=0 with flush quality, got {result_zero_flush}"
+
+    # 对比：outs=None 应该使用默认值
+    result_none = lookup.outs_to_river(None)
+    expected_default = 8 * 0.021  # 8 outs * 2.1% per out
+    assert (
+        abs(result_none - expected_default) < 1e-6
+    ), f"Expected default value for None, got {result_none}"
+
+
+def test_outs_to_river_quality_weights():
+    """测试不同质量权重的正确应用"""
+    base_outs = 5
+    base_prob = 5 * 0.021  # 10.5%
+
+    # 标准权重
+    standard = lookup.outs_to_river(base_outs, "standard")
+    assert abs(standard - base_prob) < 1e-6
+
+    # 同花权重应该更高
+    flush = lookup.outs_to_river(base_outs, "flush")
+    expected_flush = base_prob * 1.05
+    assert abs(flush - expected_flush) < 1e-6
+
+    # 顺子权重应该稍低
+    straight = lookup.outs_to_river(base_outs, "straight")
+    expected_straight = base_prob * 0.95
+    assert abs(straight - expected_straight) < 1e-6
+
+
+def test_outs_to_river_bounds():
+    """测试返回值边界"""
+    # 零outs应该返回0.0
+    assert lookup.outs_to_river(0) == 0.0
+
+    # 负数outs应该返回0.0（边界检查）
+    assert lookup.outs_to_river(-1) == 0.0
+
+    # 大量outs应该被限制在0.95
+    high_outs = lookup.outs_to_river(50)  # 50 * 0.021 = 1.05，会被限制到0.95
+    assert high_outs == 0.95

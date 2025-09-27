@@ -40,7 +40,7 @@ def _outs_config() -> dict[str, Any]:
 def outs_to_river(outs: int | None = None, quality: str | None = None) -> float:
     cfg = _outs_config()
     defaults = cfg.get("defaults", {})
-    outs_val = outs or int(defaults.get("outs", 8))
+    outs_val = outs if outs is not None else int(defaults.get("outs", 8))
     base_prob = float(defaults.get("per_out", 0.021))
     weight = cfg.get("quality_weights", {}).get(quality or "standard", 1.0)
     estimate = outs_val * base_prob * weight
