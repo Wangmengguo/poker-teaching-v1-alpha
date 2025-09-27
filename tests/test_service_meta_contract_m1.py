@@ -200,3 +200,55 @@ def test_turn_rule_path_appends_facing_context(monkeypatch, patch_analysis):
     meta = result.get("meta") or {}
     assert meta.get("facing_size_tag") == "half"
     assert meta.get("rule_path", "").endswith("/facing:half")
+
+
+def test_meta_fields_present(monkeypatch, patch_analysis):
+    acts = [LegalAction("bet", min=50, max=1000), LegalAction("check")]
+
+    monkeypatch.setattr("poker_core.suggest.service.legal_actions_struct", lambda gs: acts)
+
+    gs = _GS(street="flop", to_act=0)
+    result = build_suggestion(gs, actor=0)
+
+    meta = result.get("meta") or {}
+    assert meta.get("baseline") == "GTO"
+    assert meta.get("mode") == "GTO"
+    node_key = meta.get("node_key")
+    assert isinstance(node_key, str) and node_key.startswith("flop|")
+
+
+def test_debug_meta_contains_rule_path_and_mix(monkeypatch, patch_analysis):
+    monkeypatch.setenv("SUGGEST_DEBUG", "1")
+
+    acts = [LegalAction("bet", min=50, max=400), LegalAction("check")]
+
+    monkeypatch.setattr("poker_core.suggest.service.legal_actions_struct", lambda gs: acts)
+
+    mix_meta = {
+        "rule_path": "flop/single_raised/pfr/ip/texture:dry/spr:spr6",
+        "mix": {
+            "arms": [
+                {"action": "bet", "size_tag": "third", "weight": 0.6},
+                {"action": "check", "weight": 0.4},
+            ],
+            "chosen_index": 0,
+            "seed_key": "hand:node",
+        },
+        "frequency": 0.6,
+    }
+
+    def _stub_policy(obs, cfg):
+        suggested = {"action": "bet", "size_tag": "third"}
+        rationale = []
+        return suggested, rationale, "flop_v1", dict(mix_meta)
+
+    monkeypatch.setitem(POLICY_REGISTRY_V1, "flop", _stub_policy)
+
+    gs = _GS(street="flop", to_act=0)
+    result = build_suggestion(gs, actor=0)
+
+    meta = result.get("meta") or {}
+    assert meta.get("rule_path") == mix_meta["rule_path"]
+    debug_meta = (result.get("debug") or {}).get("meta") or {}
+    assert debug_meta.get("rule_path") == mix_meta["rule_path"]
+    assert debug_meta.get("mix") == mix_meta["mix"]

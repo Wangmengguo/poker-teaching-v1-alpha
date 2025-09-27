@@ -16,6 +16,7 @@ from .codes import mk_rationale as R
 from .decision import Decision
 from .decision import SizeSpec
 from .flop_rules import get_flop_rules
+from .node_key import node_key_from_observation
 from .policy_preflop import decide_bb_defend
 from .policy_preflop import decide_sb_open
 from .policy_preflop import decide_sb_vs_threebet
@@ -484,9 +485,13 @@ def _select_action_from_node(
     size_tag = str(node.get("size_tag")) if node.get("size_tag") else None
 
     mix_entries = node.get("mix") if isinstance(node, dict) else None
+    canonical_node_key = node_key_from_observation(obs)
+    if canonical_node_key:
+        meta["node_key"] = canonical_node_key
+
     if not isinstance(mix_entries, list) or not mix_entries:
         if rule_path:
-            meta["node_key"] = rule_path
+            meta.setdefault("rule_path", rule_path)
         return action, size_tag, meta
 
     arms: list[dict[str, Any]] = []
@@ -511,15 +516,14 @@ def _select_action_from_node(
         arms.append(arm)
         weights.append(weight_val)
 
-    node_key = str(node.get("node_key") or rule_path or "")
+    node_key = str(node.get("node_key") or canonical_node_key or rule_path or "")
     if node_key:
         meta["node_key"] = node_key
-    elif rule_path:
-        meta["node_key"] = rule_path
 
     if not arms:
         if rule_path:
             meta.setdefault("node_key", rule_path)
+            meta.setdefault("rule_path", rule_path)
         return action, size_tag, meta
 
     total = sum(weights)

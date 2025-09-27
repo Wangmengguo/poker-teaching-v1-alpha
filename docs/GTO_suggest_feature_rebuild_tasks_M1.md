@@ -172,7 +172,7 @@
 - DoD
   - 测试通过；无非法动作。
 
-### 任务 B4：节点键 node_key_from_observation（统一离线/运行时）
+### ✅ 任务 B4：节点键 node_key_from_observation（统一离线/运行时）
 - 先写的测试
   - `tests/test_node_key.py`
     - `test_node_key_components()`：包含 `pot_type/role/(ip|oop)/texture/spr/hand_class` 六要素。
@@ -191,7 +191,7 @@
 - DoD
   - 测试通过；响应包含 `meta.node_key`。
 
-### 任务 B5：输出契约增强（不改 UI 契约）
+### ✅ 任务 B5：输出契约增强（不改 UI 契约）
 - 先写的测试
   - `tests/test_service_meta_contract_m1.py`
     - `test_meta_fields_present()`：`meta.baseline="GTO" / meta.mode="GTO" / meta.node_key` 存在。

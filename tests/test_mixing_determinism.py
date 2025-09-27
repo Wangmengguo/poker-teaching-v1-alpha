@@ -148,4 +148,6 @@ def test_meta_mix_and_frequency_emitted(monkeypatch, mixed_rules):
     assert math.isclose(meta["frequency"], chosen_weight, rel_tol=1e-6, abs_tol=1e-6)
     seed_key = mix_info.get("seed_key")
     assert isinstance(seed_key, str) and seed_key
-    assert meta.get("node_key") == meta.get("rule_path")
+    node_key = meta.get("node_key")
+    assert isinstance(node_key, str) and node_key.startswith("flop|single_raised|pfr|ip|")
+    assert isinstance(meta.get("rule_path"), str)

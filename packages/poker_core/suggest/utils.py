@@ -10,6 +10,7 @@ from poker_core.cards import RANK_ORDER
 from poker_core.cards import parse_card
 from poker_core.domain.actions import LegalAction
 
+from .classifiers import classify_board_texture
 from .preflop_tables import get_modes
 
 
@@ -66,57 +67,28 @@ def spr_bucket(spr: float) -> str:
 
 
 def classify_flop(board: list[str]) -> dict[str, Any]:
-    """简化的翻面纹理分类。
-    返回：{texture:'dry|semi|wet|na', paired:bool, fd:bool, sd:bool}
-    规则（近似且稳定）：
-      - <3 张公共牌 → na
-      - 若有对子或三张同花或三连顺/双连顺 → wet
-      - 两张同花或两张相连（含 1-gap） → semi
-      - 否则 dry
-    """
+    """Return flop texture along with flush/straight hints."""
+
     if not board or len(board) < 3:
         return {"texture": "na", "paired": False, "fd": False, "sd": False}
 
-    # ranks / suits 提取
     ranks = [c[:-1] for c in board[:3]]
     suits = [c[-1] for c in board[:3]]
-    # paired
     paired = len(set(ranks)) < 3
-    # 同花倾向
-    s_counts: dict[str, int] = {}
-    for s in suits:
-        s_counts[s] = s_counts.get(s, 0) + 1
-    three_suited = any(v == 3 for v in s_counts.values())
-    two_suited = any(v == 2 for v in s_counts.values())
-    fd = three_suited or two_suited  # 简化：两同花即认为有同花倾向
 
-    # 顺听倾向（粗略，以排序后相邻差值衡量）
-    RANK_ORDER = {
-        "2": 2,
-        "3": 3,
-        "4": 4,
-        "5": 5,
-        "6": 6,
-        "7": 7,
-        "8": 8,
-        "9": 9,
-        "T": 10,
-        "J": 11,
-        "Q": 12,
-        "K": 13,
-        "A": 14,
-    }
+    suit_counts: dict[str, int] = {}
+    for s in suits:
+        suit_counts[s] = suit_counts.get(s, 0) + 1
+    three_suited = any(v == 3 for v in suit_counts.values())
+    two_suited = any(v == 2 for v in suit_counts.values())
+    fd = three_suited or two_suited
+
     vals = sorted(RANK_ORDER.get(r, 0) for r in ranks)
     gaps = [vals[1] - vals[0], vals[2] - vals[1]]
     connected = (gaps[0] <= 1 and gaps[1] <= 1) or (gaps[0] == 2 or gaps[1] == 2)
     sd = connected
 
-    if paired or three_suited or (connected and two_suited):
-        texture = "wet"
-    elif two_suited or connected:
-        texture = "semi"
-    else:
-        texture = "dry"
+    texture = classify_board_texture(board[:3])
 
     return {"texture": texture, "paired": paired, "fd": fd, "sd": sd}
 

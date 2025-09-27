@@ -1,7 +1,58 @@
-{
-  "spr_bins": {
-    "edges": [0, 3, 6, 999],
-    "labels": ["low", "mid", "high"]
-  },
-  "texture_tags": ["dry", "semi", "wet"]
-}
+# Classifier thresholds shared between offline builders and runtime node-key derivation.
+# - SPR bins follow left-open/right-closed intervals with boundary values joining the higher bin.
+# - Texture classification enumerates explicit adjacency and suited-card thresholds to avoid ambiguity.
+
+spr_bins:
+  rounding: half_up
+  intervals: left_open_right_closed
+  na_label: na
+  bins:
+    - label: spr2
+      upper: 3.0
+      aliases: ["le3", "low"]
+    - label: spr4
+      upper: 5.0
+      aliases: ["3to6", "mid"]
+    - label: spr6
+      upper: 7.0
+      aliases: ["ge6", "high"]
+    - label: spr8
+      upper: 9.0
+      aliases: ["7to9", "very_high"]
+    - label: spr10
+      upper: null
+      aliases: ["ge9", "ultra"]
+  aliases:
+    na: ["na", ""]
+
+texture:
+  suits_thresholds:
+    two_suited: 2
+    three_suited: 3
+  adjacency_thresholds:
+    connected: 1
+    one_gap: 2
+  aliases:
+    dry: ["dry"]
+    semi: ["semi"]
+    wet: ["wet"]
+    na: ["na", ""]
+  classification_order:
+    - label: wet
+      conditions:
+        paired: true
+    - label: wet
+      conditions:
+        suits_at_least: 3
+    - label: wet
+      conditions:
+        suits_at_least: 2
+        max_gap: 1
+    - label: semi
+      conditions:
+        suits_at_least: 2
+    - label: semi
+      conditions:
+        max_gap: 2
+    - label: dry
+  default: dry

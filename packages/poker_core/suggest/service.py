@@ -21,6 +21,7 @@ from .context import SuggestContext
 from .decision import Decision
 from .explanations import render_explanations
 from .fallback import choose_conservative_line
+from .node_key import node_key_from_observation
 from .policy import policy_flop_v1
 from .policy import policy_postflop_v0_3
 from .policy import policy_preflop_v0
@@ -410,7 +411,15 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
     }
 
     # meta 仅在有值时返回；由策略层提供
-    meta_clean = drop_nones(dict(meta_from_policy or {}))
+    meta_dict = dict(meta_from_policy or {})
+    meta_dict.setdefault("baseline", "GTO")
+    meta_dict.setdefault("mode", "GTO")
+    if "node_key" not in meta_dict:
+        try:
+            meta_dict["node_key"] = node_key_from_observation(obs)
+        except Exception:
+            meta_dict["node_key"] = None
+    meta_clean = drop_nones(meta_dict)
     if meta_clean:
         resp["meta"] = meta_clean
 
