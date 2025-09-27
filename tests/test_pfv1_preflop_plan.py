@@ -4,7 +4,9 @@ import os
 
 import pytest
 from poker_core.domain.actions import LegalAction
-from poker_core.suggest.context import SuggestContext, SuggestFlags, SuggestProfile
+from poker_core.suggest.context import SuggestContext
+from poker_core.suggest.context import SuggestFlags
+from poker_core.suggest.context import SuggestProfile
 from poker_core.suggest.service import build_suggestion
 
 

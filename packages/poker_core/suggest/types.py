@@ -46,6 +46,9 @@ class Observation:
     # teaching field: 上一轮最后一次加注者（进入本街之前），None 表示未知
     last_aggressor: int | None = None
     context: SuggestContext | None = None
+    # showdown helpers (river semantics)
+    hole: tuple[str, ...] = ()
+    board: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

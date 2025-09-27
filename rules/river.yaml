@@ -1,0 +1,70 @@
+version: 1
+blocker_priority:
+  - nut_flush_blocker
+  - straight_blocker
+  - full_house_blocker
+facing_size_map:
+  small:
+    - third
+    - half
+  large:
+    - two_third+
+    - pot
+    - all_in
+tiers:
+  strong_value:
+    default:
+      action: bet
+      size_tag: third
+      plan: "河牌强牌薄价值下注"
+    blockers:
+      nut_flush_blocker:
+        action: check
+        plan: "拥有坚果同花阻断，转为过牌诱导"
+      straight_blocker:
+        action: check
+        plan: "关键顺子阻断，偏向过牌诱导"
+      full_house_blocker:
+        action: check
+        plan: "阻断对手满堂红，选择控制底池"
+    facing:
+      small:
+        action: call
+      large:
+        action: call
+  medium_value:
+    default:
+      action: check
+      plan: "中等摊牌价值，控制底池"
+    facing:
+      small:
+        action: call
+        plan: "可支付小注，保留摊牌"
+      large:
+        action: fold
+        plan: "昂贵下注放弃边缘价值"
+  weak_showdown:
+    default:
+      action: check
+      plan: "弱摊牌优先免费摊牌"
+    facing:
+      small:
+        action: call
+        plan: "小注可跟注防诈唬"
+      large:
+        action: fold
+        plan: "大注弃牌，保留筹码"
+  air:
+    default:
+      action: bet
+      size_tag: third
+      plan: "无摊牌价值的阻塞式诈唬"
+    blockers:
+      nut_flush_blocker:
+        action: check
+        plan: "阻断价值牌，放弃诈唬"
+    facing:
+      small:
+        action: fold
+      large:
+        action: fold

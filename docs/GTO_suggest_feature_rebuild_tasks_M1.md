@@ -140,7 +140,7 @@
 - DoD
   - 测试通过；解释渲染含频率文本（当提供时）。
 
-### 任务 B2：确定性混合策略（默认关闭）
+### ✅ 任务 B2：确定性混合策略（默认关闭）
 - 先写的测试
   - `tests/test_mixing_determinism.py`
     - `test_stable_weighted_choice_deterministic()`：同 `seed_key/weights` 返回同一索引。
@@ -158,7 +158,7 @@
 - DoD
   - 测试通过；默认关闭不影响 baseline。
 
-### 任务 B3：保守回退（缺失节点/信息缺口）
+### ✅ 任务 B3：保守回退（缺失节点/信息缺口）
 - 先写的测试
   - `tests/test_fallback_minimal.py`
     - `test_missing_rule_triggers_fallback_and_code()`：缺规则时产出合法动作且 rationale 含 `CFG_FALLBACK_USED`。
@@ -172,7 +172,7 @@
 - DoD
   - 测试通过；无非法动作。
 
-### 任务 B4：节点键 node_key_from_observation（统一离线/运行时）
+### ✅ 任务 B4：节点键 node_key_from_observation（统一离线/运行时）
 - 先写的测试
   - `tests/test_node_key.py`
     - `test_node_key_components()`：包含 `pot_type/role/(ip|oop)/texture/spr/hand_class` 六要素。
@@ -191,7 +191,7 @@
 - DoD
   - 测试通过；响应包含 `meta.node_key`。
 
-### 任务 B5：输出契约增强（不改 UI 契约）
+### ✅ 任务 B5：输出契约增强（不改 UI 契约）
 - 先写的测试
   - `tests/test_service_meta_contract_m1.py`
     - `test_meta_fields_present()`：`meta.baseline="GTO" / meta.mode="GTO" / meta.node_key` 存在。
@@ -204,7 +204,7 @@
 - DoD
   - 测试通过；兼容既有测试。
 
-### 任务 B6：River 最小规则组与解释口径（规则/启发式）
+### ✅ 任务 B6：River 最小规则组与解释口径（规则/启发式）
 - 先写的测试
   - `tests/test_river_rules_minimal.py`
     - `test_value_threshold_and_blocker_logic()`：强成手（两对+/强顶对）在未受阻时可小注或过牌诱导；有关键阻断牌时更多过牌/跟注。
@@ -218,6 +218,16 @@
   - 单测通过；教学解释含河牌特定口径；在 `tests/test_river_rules_minimal.py` 中提供“有/无 blocker”对比用例，建议差异符合预期。
 
 ---
+
+#### B 阶段验证与总结
+- ✅ B1：规则路径端到端，四街元信息与解释补齐。
+- ✅ B2：确定性混合策略，覆盖 `stable_weighted_choice` 与频率输出。
+- ✅ B3：保守回退逻辑，确保缺失策略时安全建议。
+- ✅ B4：`node_key_from_observation` 与分类器稳定性测试通过。
+- ✅ B5：服务层输出契约增强，`meta`/`debug.meta` 字段齐备。
+- ✅ B6：河牌最小规则组与阻断逻辑上线，新增对照测试验证阻断牌分支与弱摊牌回退口径。
+- 测试：新增 `tests/test_river_rules_minimal.py`；完整测试套件在无 pokerkit 依赖环境下除 `pokerkit` 适配器用例外全部通过。
+- 结论：B 阶段所有任务均按 TDD 完成，核心策略路径（含混合、回退、河牌规则）与契约校验全部落地，可进入后续 C 阶段解释模板扩展。
 
 ## C. Explanations & Codes（教学解释）
 

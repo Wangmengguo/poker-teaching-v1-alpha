@@ -2,30 +2,63 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 from collections.abc import Callable
+from numbers import Real
 from typing import Any
 
 from poker_core.analysis import annotate_player_hand_from_gs
 from poker_core.suggest.observations import build_observation
 
-from ..domain.actions import LegalAction, legal_actions_struct, to_act_index
+from ..domain.actions import LegalAction
+from ..domain.actions import legal_actions_struct
+from ..domain.actions import to_act_index
 from .calculators import pot_odds as calc_pot_odds
 from .codes import SCodes
 from .codes import mk_rationale as R
 from .context import SuggestContext
 from .decision import Decision
 from .explanations import render_explanations
-from .policy import (
-    policy_flop_v1,
-    policy_postflop_v0_3,
-    policy_preflop_v0,
-    policy_preflop_v1,
-    policy_river_v1,
-    policy_turn_v1,
-)
-from .types import Observation, PolicyConfig
-from .utils import drop_nones, raise_to_amount, size_to_amount, stable_roll
+from .fallback import choose_conservative_line
+from .node_key import node_key_from_observation
+from .policy import policy_flop_v1
+from .policy import policy_postflop_v0_3
+from .policy import policy_preflop_v0
+from .policy import policy_preflop_v1
+from .policy import policy_river_v1
+from .policy import policy_turn_v1
+from .types import Observation
+from .types import PolicyConfig
+from .utils import drop_nones
+from .utils import raise_to_amount
+from .utils import size_to_amount
+from .utils import stable_roll
+
+
+def _infer_amount_from_legal_actions(action: str | None, acts: list[LegalAction]) -> int | None:
+    """Derive a legal amount for fallback suggestions lacking sizing."""
+
+    if not action:
+        return None
+
+    spec = next((a for a in acts if a.action == action), None)
+    if not spec:
+        return None
+
+    try:
+        if action in {"bet", "raise", "allin"}:
+            # Prefer the minimum legal amount so downstream clamps remain valid.
+            if spec.min is not None:
+                return int(spec.min)
+            if spec.max is not None:
+                return int(spec.max)
+        elif action == "call" and spec.to_call is not None:
+            return int(spec.to_call)
+    except Exception:
+        return None
+
+    return None
 
 
 def _build_observation(gs, actor: int, acts: list[LegalAction]):
@@ -103,6 +136,74 @@ def _clamp_amount_if_needed(
     )
 
 
+def _describe_frequency(freq: Any) -> str | None:
+    """Convert a numeric or textual frequency into a natural-language snippet."""
+
+    if freq is None:
+        return None
+
+    value: float | None = None
+
+    try:
+        if isinstance(freq, str):
+            text = freq.strip()
+            if not text:
+                return None
+            if "/" in text and "%" not in text:
+                # Support fractions like "1/3"
+                num, _, denom = text.partition("/")
+                value = float(num) / float(denom) if denom else None
+            else:
+                cleaned = text.replace("%", "")
+                value = float(cleaned)
+                if "%" in text or value > 1.0:
+                    value /= 100.0
+        elif isinstance(freq, Real) or hasattr(freq, "__float__"):
+            try:
+                value = float(freq)
+            except Exception:
+                return None
+        else:
+            return None
+    except Exception:
+        return None
+
+    if value is None or not math.isfinite(value):
+        return None
+
+    if value < 0:
+        value = 0.0
+    if value > 1:
+        value = 1.0
+
+    pct_float = value * 100.0
+    pct = int(round(pct_float))
+    pct = max(0, min(100, pct))
+    is_tiny_positive = value > 0 and pct == 0
+
+    if pct >= 95:
+        label = "几乎总是"
+    elif pct >= 70:
+        label = "大多数时候"
+    elif pct >= 45:
+        label = "约一半时间"
+    elif pct >= 20:
+        label = "偶尔出现"
+    elif pct >= 5:
+        label = "偶发出现"
+    elif value > 0:
+        label = "极少出现"
+    else:
+        label = "几乎不出现"
+
+    if is_tiny_positive:
+        percent_text = "<1%"
+    else:
+        percent_text = f"{pct}%"
+
+    return f"建议频率：{label}（约 {percent_text}）"
+
+
 # 策略注册表（按版本/街选择）。PR-0：v1 映射到 v0 占位，保证行为不变。
 PolicyFn = Callable[
     [Observation, PolicyConfig],
@@ -169,36 +270,63 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
 
     # 执行策略
     cfg = cfg or PolicyConfig()
-    suggested: dict[str, Any]
-    out = policy_fn(obs, cfg)
-
-    decision_obj: Decision | None = None
+    suggested: dict[str, Any] = {}
+    rationale: list[dict[str, Any]] = []
     meta_from_policy: dict[str, Any] = {}
+    decision_obj: Decision | None = None
+    policy_name = getattr(policy_fn, "__name__", "unknown")
+    fallback_used = False
+    fallback_meta: dict[str, Any] = {}
+    fallback_rationale: list[dict[str, Any]] = []
 
-    if isinstance(out, Decision):
-        decision_obj = out
-        rationale = []
-        policy_name = "unknown"
-    elif isinstance(out, tuple):
-        if out and isinstance(out[0], Decision):
-            decision_obj = out[0]
-            rationale = list(out[1]) if len(out) > 1 else []  # type: ignore
-            policy_name = str(out[2]) if len(out) > 2 else "unknown"
-            meta_from_policy = dict(out[3]) if len(out) > 3 else {}
-        elif len(out) == 4:
-            suggested, rationale, policy_name, meta_from_policy = out  # type: ignore
-        else:
-            suggested, rationale, policy_name = out  # type: ignore
-            meta_from_policy = {}
+    def _engage_fallback(reason: str | None = None) -> None:
+        nonlocal suggested, fallback_used, fallback_meta, fallback_rationale, meta_from_policy
+        fb_suggested, fb_meta, fb_rationale = choose_conservative_line(obs, acts)
+        fallback_used = True
+        suggested = fb_suggested
+        fallback_meta = dict(fb_meta or {})
+        fallback_rationale = list(fb_rationale or [])
+        if reason:
+            fallback_meta.setdefault("fallback_reason", reason)
+        meta_from_policy = dict(fallback_meta)
+
+    try:
+        out = policy_fn(obs, cfg)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "policy %s failed; using conservative fallback",
+            getattr(policy_fn, "__name__", "unknown"),
+        )
+        _engage_fallback("policy_exception")
+        out = None
     else:
-        raise ValueError("Policy returned unsupported response type")
+        if isinstance(out, Decision):
+            decision_obj = out
+            rationale = []
+            policy_name = "unknown"
+        elif isinstance(out, tuple):
+            if out and isinstance(out[0], Decision):
+                decision_obj = out[0]
+                rationale = list(out[1]) if len(out) > 1 else []  # type: ignore
+                policy_name = str(out[2]) if len(out) > 2 else "unknown"
+                meta_from_policy = dict(out[3]) if len(out) > 3 else {}
+            elif len(out) == 4:
+                suggested, rationale, policy_name, meta_from_policy = out  # type: ignore
+            else:
+                suggested, rationale, policy_name = out  # type: ignore
+                meta_from_policy = {}
+        else:
+            raise ValueError("Policy returned unsupported response type")
 
     if decision_obj is not None:
         suggested, decision_meta, decision_rationale = decision_obj.resolve(obs, acts, cfg)
         meta_from_policy = {**(decision_meta or {}), **(meta_from_policy or {})}
         rationale = list(rationale or []) + list(decision_rationale or [])
-    else:
+    elif not fallback_used:
         suggested = suggested  # type: ignore  # already set in non-decision branches
+
+    if not fallback_used and not suggested:
+        _engage_fallback("empty_suggestion")
     # 若策略仅返回 size_tag（无金额），在服务层统一换算
     try:
         if (
@@ -237,6 +365,10 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
                     )
                 if amt is not None:
                     suggested["amount"] = int(amt)
+        if suggested and suggested.get("amount") is None:
+            inferred_amt = _infer_amount_from_legal_actions(suggested.get("action"), acts)
+            if inferred_amt is not None:
+                suggested["amount"] = inferred_amt
         # Min-reopen lift for postflop raise sizing (to-amount semantics)
         if suggested and suggested.get("action") == "raise" and suggested.get("amount") is not None:
             try:
@@ -267,7 +399,15 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
     # 名称校验
     names = {a.action for a in acts}
     if suggested.get("action") not in names:
-        raise ValueError("Policy produced illegal action")
+        _engage_fallback("illegal_action")
+        if suggested.get("action") not in names:
+            raise ValueError("Policy produced illegal action")
+
+    if fallback_meta:
+        meta_from_policy = {**(meta_from_policy or {}), **fallback_meta}
+
+    if fallback_rationale:
+        rationale = list(rationale or []) + list(fallback_rationale)
 
     # SB 补盲（limp）时确保附带解释码（防止上游遗漏）
     try:
@@ -300,7 +440,15 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
     }
 
     # meta 仅在有值时返回；由策略层提供
-    meta_clean = drop_nones(dict(meta_from_policy or {}))
+    meta_dict = dict(meta_from_policy or {})
+    meta_dict.setdefault("baseline", "GTO")
+    meta_dict.setdefault("mode", "GTO")
+    if "node_key" not in meta_dict:
+        try:
+            meta_dict["node_key"] = node_key_from_observation(obs)
+        except Exception:
+            meta_dict["node_key"] = None
+    meta_clean = drop_nones(meta_dict)
     if meta_clean:
         resp["meta"] = meta_clean
 
@@ -389,6 +537,12 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
             "facing_size_tag": getattr(obs, "facing_size_tag", "na"),
             "rule_path": (resp.get("meta") or {}).get("rule_path"),
         }
+        mix_debug = (resp.get("meta") or {}).get("mix")
+        if mix_debug:
+            debug_meta["mix"] = mix_debug
+        node_key = (resp.get("meta") or {}).get("node_key")
+        if node_key is not None:
+            debug_meta["node_key"] = node_key
         resp["debug"] = {"meta": debug_meta}
 
     # Structured log for v1 (or when debug enabled), including profile
@@ -430,9 +584,14 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
             "action": (resp.get("suggested") or {}).get("action"),
             "amount": (resp.get("suggested") or {}).get("amount"),
         }
-        exp = render_explanations(rationale=rationale, meta=resp.get("meta"), extras=extras)
-        if exp:
-            resp["explanations"] = exp
+        exp_list = list(
+            render_explanations(rationale=rationale, meta=resp.get("meta"), extras=extras)
+        )
+        freq_text = _describe_frequency((resp.get("meta") or {}).get("frequency"))
+        if freq_text:
+            exp_list.append(freq_text)
+        if exp_list:
+            resp["explanations"] = exp_list
     except Exception:
         # Keep optional; never fail the main suggest flow
         pass

@@ -1,9 +1,7 @@
 from poker_core.domain.actions import LegalAction
-from poker_core.suggest.service import (
-    POLICY_REGISTRY,
-    POLICY_REGISTRY_V1,
-    build_suggestion,
-)
+from poker_core.suggest.service import POLICY_REGISTRY
+from poker_core.suggest.service import POLICY_REGISTRY_V1
+from poker_core.suggest.service import build_suggestion
 
 
 def test_service_clamps_bet_and_reports_warn_clamped(monkeypatch):

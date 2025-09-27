@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from poker_core.domain.actions import LegalAction
-from poker_core.suggest.context import SuggestContext, SuggestFlags, SuggestProfile
+from poker_core.suggest.context import SuggestContext
+from poker_core.suggest.context import SuggestFlags
+from poker_core.suggest.context import SuggestProfile
 from poker_core.suggest.hand_strength import HandStrength
 from poker_core.suggest.policy import policy_flop_v1
-from poker_core.suggest.types import Observation, PolicyConfig
-from poker_core.suggest.utils import HC_OP_TPTK, HC_STRONG_DRAW, HC_VALUE
+from poker_core.suggest.types import Observation
+from poker_core.suggest.types import PolicyConfig
+from poker_core.suggest.utils import HC_OP_TPTK
+from poker_core.suggest.utils import HC_STRONG_DRAW
+from poker_core.suggest.utils import HC_VALUE
 
 
 def _ctx() -> SuggestContext:

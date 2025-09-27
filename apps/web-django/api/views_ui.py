@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.http import HttpRequest, HttpResponse
-from django.shortcuts import get_object_or_404, render
+from django.http import HttpRequest
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
+from django.shortcuts import render
 from django.template.loader import render_to_string
-from django.views.decorators.http import require_http_methods, require_POST
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_POST
 from poker_core.domain.actions import legal_actions_struct
 
 # 领域函数与结构化合法动作
@@ -15,7 +18,8 @@ from poker_core.state_hu import start_hand as _start_hand
 
 from . import metrics
 from .models import Session
-from .state import HANDS, snapshot_state
+from .state import HANDS
+from .state import snapshot_state
 
 
 def _role_name(button: int, who: int) -> str:

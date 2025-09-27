@@ -4,14 +4,17 @@ import os
 import sys
 import time
 
-from drf_spectacular.utils import extend_schema, inline_serializer
-from rest_framework import serializers, status
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import inline_serializer
+from rest_framework import serializers
+from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from . import metrics
 from .models import Replay
-from .state import METRICS, REPLAYS
+from .state import METRICS
+from .state import REPLAYS
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 PKG_DIR = os.path.abspath(os.path.join(BASE_DIR, "packages"))
@@ -22,7 +25,8 @@ from datetime import UTC  # noqa: E402
 
 from poker_core.analysis import annotate_player_hand  # noqa: E402
 from poker_core.deal import deal_hand as core_deal  # noqa: E402
-from poker_core.version import ENGINE_COMMIT, SCHEMA_VERSION  # noqa: E402
+from poker_core.version import ENGINE_COMMIT  # noqa: E402
+from poker_core.version import SCHEMA_VERSION  # noqa: E402
 
 DealRequest = inline_serializer(
     name="DealRequest",

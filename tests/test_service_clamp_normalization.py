@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import pytest
 from poker_core.domain.actions import LegalAction
-from poker_core.suggest.decision import Decision, SizeSpec
-from poker_core.suggest.service import (
-    POLICY_REGISTRY_V0,
-    POLICY_REGISTRY_V1,
-    build_suggestion,
-)
+from poker_core.suggest.decision import Decision
+from poker_core.suggest.decision import SizeSpec
+from poker_core.suggest.service import POLICY_REGISTRY_V0
+from poker_core.suggest.service import POLICY_REGISTRY_V1
+from poker_core.suggest.service import build_suggestion
 
 
 class _Player:

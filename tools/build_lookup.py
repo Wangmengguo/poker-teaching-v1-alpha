@@ -66,10 +66,29 @@ def _generate_values(
     return values, meta
 
 
+def _extract_spr_bins(classifiers: dict) -> list[str]:
+    spr_config = classifiers.get("spr_bins")
+    if isinstance(spr_config, dict):
+        bins = spr_config.get("bins")
+        if isinstance(bins, list):
+            labels: list[str] = []
+            for entry in bins:
+                if isinstance(entry, dict):
+                    label = entry.get("label")
+                    if isinstance(label, str):
+                        labels.append(label)
+            if labels:
+                return labels
+        labels = spr_config.get("labels")
+        if isinstance(labels, list) and all(isinstance(label, str) for label in labels):
+            return list(labels)
+    return ["low", "mid", "high"]
+
+
 def build_lookup_tables(kind: str, streets: list[str], out_dir: Path, seed: int = 42) -> list[Path]:
     classifiers = _load_yaml(CLASSIFIERS_PATH)
     textures = classifiers.get("texture_tags") or ["dry", "semi", "wet"]
-    spr_bins = classifiers.get("spr_bins", {}).get("labels") or ["low", "mid", "high"]
+    spr_bins = _extract_spr_bins(classifiers)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     artifacts: list[Path] = []

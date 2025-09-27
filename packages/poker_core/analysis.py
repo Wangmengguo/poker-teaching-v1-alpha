@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from poker_core.suggest.codes import SCodes, mk_note
+from poker_core.suggest.codes import SCodes
+from poker_core.suggest.codes import mk_note
 
-from .cards import get_rank_value, parse_card
+from .cards import get_rank_value
+from .cards import parse_card
 
 
 # --- 基础特征提取 ---

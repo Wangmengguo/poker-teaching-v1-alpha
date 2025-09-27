@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from poker_core.suggest.explanations import load_explanations, render_explanations
+from poker_core.suggest.explanations import load_explanations
+from poker_core.suggest.explanations import render_explanations
 
 
 def test_render_known_code_with_numbers():

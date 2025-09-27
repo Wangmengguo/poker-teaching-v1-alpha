@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from poker_core.domain.actions import LegalAction
-from poker_core.suggest.context import SuggestContext, SuggestFlags, SuggestProfile
+from poker_core.suggest.context import SuggestContext
+from poker_core.suggest.context import SuggestFlags
+from poker_core.suggest.context import SuggestProfile
 from poker_core.suggest.hand_strength import HandStrength
-from poker_core.suggest.policy_preflop import (
-    PreflopDecision,
-    decide_bb_defend,
-    decide_sb_open,
-    decide_sb_vs_threebet,
-)
-from poker_core.suggest.types import Observation, PolicyConfig
+from poker_core.suggest.policy_preflop import PreflopDecision
+from poker_core.suggest.policy_preflop import decide_bb_defend
+from poker_core.suggest.policy_preflop import decide_sb_open
+from poker_core.suggest.policy_preflop import decide_sb_vs_threebet
+from poker_core.suggest.types import Observation
+from poker_core.suggest.types import PolicyConfig
 
 
 def _ctx(**overrides) -> SuggestContext:

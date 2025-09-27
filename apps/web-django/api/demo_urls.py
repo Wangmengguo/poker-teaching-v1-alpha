@@ -1,7 +1,10 @@
 from django.urls import path
 
 from .views import demo_page
-from .views_play import hand_act_api, hand_start_api, hand_state_api, session_start_api
+from .views_play import hand_act_api
+from .views_play import hand_start_api
+from .views_play import hand_state_api
+from .views_play import session_start_api
 
 urlpatterns = [
     path("", demo_page, name="demo"),

@@ -6,13 +6,11 @@ import logging
 from django.http import HttpResponse
 
 try:
-    from prometheus_client import (
-        CONTENT_TYPE_LATEST,
-        REGISTRY,
-        Counter,
-        Histogram,
-        generate_latest,
-    )
+    from prometheus_client import CONTENT_TYPE_LATEST
+    from prometheus_client import REGISTRY
+    from prometheus_client import Counter
+    from prometheus_client import Histogram
+    from prometheus_client import generate_latest
 
     log = logging.getLogger(__name__)
 

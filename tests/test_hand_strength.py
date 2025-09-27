@@ -1,12 +1,10 @@
 import pytest
 from poker_core.suggest.hand_strength import derive_hand_strength
-from poker_core.suggest.utils import (
-    HC_MID_OR_THIRD_MINUS,
-    HC_OP_TPTK,
-    HC_STRONG_DRAW,
-    HC_VALUE,
-    HC_WEAK_OR_AIR,
-)
+from poker_core.suggest.utils import HC_MID_OR_THIRD_MINUS
+from poker_core.suggest.utils import HC_OP_TPTK
+from poker_core.suggest.utils import HC_STRONG_DRAW
+from poker_core.suggest.utils import HC_VALUE
+from poker_core.suggest.utils import HC_WEAK_OR_AIR
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,7 @@
 {
   "codes": [],
   "meta": {
+    "plan": "\u6cb3\u724c\u5f3a\u724c\u8584\u4ef7\u503c\u4e0b\u6ce8",
     "rule_path": "single_raised/role/pfr/ip/dry/ge6/defaults:value_two_pair_plus",
     "size_tag": "third"
   },
