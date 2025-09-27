@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from tools import build_tree
 
 CONFIG_PATH = Path("configs/trees/hu_discrete_2cap.yaml")
@@ -61,3 +63,62 @@ def test_tree_is_2cap_validated(tmp_path):
 
     for root in roots:
         _dfs(root, {})
+
+
+def test_invalid_node_reference_raises_error(tmp_path):
+    """测试无效的节点引用会引发验证错误"""
+    # 创建一个包含无效节点引用的配置
+    invalid_config = {
+        "nodes": [
+            {
+                "id": "root",
+                "street": "preflop",
+                "role": "ip",
+                "actions": [{"name": "fold", "next": "nonexistent_node"}],  # 引用不存在的节点
+            }
+        ]
+    }
+
+    # 写入临时配置文件
+    config_path = tmp_path / "invalid_config.yaml"
+    import yaml
+
+    with open(config_path, "w") as f:
+        yaml.dump(invalid_config, f)
+
+    out_path = tmp_path / "tree.json"
+
+    # 应该引发ValueError
+    with pytest.raises(ValueError, match="references unknown target node 'nonexistent_node'"):
+        build_tree.main(["--config", str(config_path), "--out", str(out_path)])
+
+
+def test_valid_node_references_pass_validation(tmp_path):
+    """测试有效的节点引用通过验证"""
+    # 创建一个包含有效节点引用的配置
+    valid_config = {
+        "nodes": [
+            {
+                "id": "root",
+                "street": "preflop",
+                "role": "ip",
+                "actions": [{"name": "fold", "next": "terminal"}],  # 引用存在的节点
+            },
+            {"id": "terminal", "street": "preflop", "role": "terminal", "actions": []},
+        ],
+        "terminals": ["terminal"],  # 明确定义terminals
+    }
+
+    # 写入临时配置文件
+    config_path = tmp_path / "valid_config.yaml"
+    import yaml
+
+    with open(config_path, "w") as f:
+        yaml.dump(valid_config, f)
+
+    out_path = tmp_path / "tree.json"
+
+    # 应该成功构建
+    rc = build_tree.main(["--config", str(config_path), "--out", str(out_path)])
+    assert rc == 0
+    assert out_path.exists()

@@ -42,6 +42,11 @@ def _build_nodes(config: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dic
     edges: list[dict[str, str]] = []
     node_ids: set[str] = set()
 
+    # 收集所有有效的目标节点ID（包括terminals）
+    terminals = set(config.get("terminals", []))
+    valid_targets = set()
+
+    # 首先收集所有节点ID
     for raw_node in nodes_cfg:
         node_id = raw_node.get("id")
         if not node_id:
@@ -49,7 +54,14 @@ def _build_nodes(config: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dic
         if node_id in node_ids:
             raise ValueError(f"Duplicate node id: {node_id}")
         node_ids.add(node_id)
+        valid_targets.add(node_id)
 
+    # 添加terminals到有效目标集合
+    valid_targets.update(terminals)
+
+    # 构建节点和边
+    for raw_node in nodes_cfg:
+        node_id = raw_node.get("id")
         actions_raw = raw_node.get("actions") or []
         actions = [_normalize_action(a) for a in actions_raw]
         node = {
@@ -64,6 +76,12 @@ def _build_nodes(config: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dic
         nodes.append(node)
         for action in actions:
             if action.get("next"):
+                next_node = action["next"]
+                if next_node not in valid_targets:
+                    raise ValueError(
+                        f"Node '{node_id}' action '{action['name']}' references unknown target node '{next_node}'. "
+                        f"Valid targets are: {sorted(valid_targets)}"
+                    )
                 edges.append(
                     {
                         "from": node_id,
