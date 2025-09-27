@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 import argparse
-import json
 import shutil
 import time
 from pathlib import Path
-from typing import List, Tuple
 
 from tools import build_buckets, build_tree, cache_turn_leaf_ev, estimate_transitions
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 STATIC_CONFIGS = {
     REPO_ROOT / "configs" / "size_map.yaml": "configs/size_map.yaml",
     REPO_ROOT / "configs" / "classifiers.yaml": "configs/classifiers.yaml",
-    REPO_ROOT / "configs" / "trees" / "hu_discrete_2cap.yaml": "configs/trees/hu_discrete_2cap.yaml",
+    REPO_ROOT
+    / "configs"
+    / "trees"
+    / "hu_discrete_2cap.yaml": "configs/trees/hu_discrete_2cap.yaml",
 }
 
 
@@ -42,12 +42,12 @@ def _file_size(path: Path) -> str:
     return f"{value:.1f}{units[unit]}"
 
 
-def run_smoke(workspace: Path, samples: int, seed: int) -> tuple[bool, List[str]]:
+def run_smoke(workspace: Path, samples: int, seed: int) -> tuple[bool, list[str]]:
     workspace.mkdir(parents=True, exist_ok=True)
     _copy_static_configs(workspace)
 
-    report_lines: List[str] = []
-    durations: List[Tuple[str, float, Path]] = []
+    report_lines: list[str] = []
+    durations: list[tuple[str, float, Path]] = []
 
     buckets_dir = workspace / "configs" / "buckets"
     transitions_dir = workspace / "artifacts" / "transitions"

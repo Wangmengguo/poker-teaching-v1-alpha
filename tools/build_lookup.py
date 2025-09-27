@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import random
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 
@@ -34,7 +34,14 @@ def _bucket_count(street: str) -> int:
     return 8
 
 
-def _generate_values(kind: str, street: str, textures: Iterable[str], spr_bins: Iterable[str], buckets: int, seed: int) -> tuple[np.ndarray, dict]:
+def _generate_values(
+    kind: str,
+    street: str,
+    textures: Iterable[str],
+    spr_bins: Iterable[str],
+    buckets: int,
+    seed: int,
+) -> tuple[np.ndarray, dict]:
     textures = list(textures)
     spr_bins = list(spr_bins)
     rng = random.Random(seed)

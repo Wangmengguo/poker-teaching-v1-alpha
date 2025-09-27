@@ -42,10 +42,7 @@ def test_transitions_tv_distance_small_when_sample_increases():
     def _row_tv_distance(row_a, row_b):
         return sum(abs(a - b) for a, b in zip(row_a, row_b)) / 2.0
 
-    max_tv = max(
-        _row_tv_distance(row_a, row_b)
-        for row_a, row_b in zip(matrix_small, matrix_large)
-    )
+    max_tv = max(_row_tv_distance(row_a, row_b) for row_a, row_b in zip(matrix_small, matrix_large))
     assert max_tv < 0.05
 
 

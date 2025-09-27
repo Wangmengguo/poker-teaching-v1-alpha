@@ -39,9 +39,7 @@ def generate_turn_leaf_ev(
     rng = random.Random(seed)
     base_vector = np.linspace(0.15, 0.85, to_bins, dtype=np.float64)
     # inject a small deterministic jitter per bucket based on seed to avoid flat outputs
-    noise_vector = np.array([
-        (rng.random() - 0.5) * 0.04 for _ in range(to_bins)
-    ])
+    noise_vector = np.array([(rng.random() - 0.5) * 0.04 for _ in range(to_bins)])
     weighted_vector = np.clip(base_vector + noise_vector, 0.0, 1.0)
 
     ev = matrix @ weighted_vector

@@ -13,8 +13,8 @@ from __future__ import annotations
 import argparse
 import json
 from collections import Counter
+from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Iterable, Mapping
 
 from poker_core.cards import RANK_ORDER, parse_card
 
@@ -175,7 +175,8 @@ def _has_two_pair_plus(hole: list[str], board: list[str]) -> bool:
 
     # Hero pairs two distinct board ranks (e.g., Kx + 8x on K84).
     matched_board_ranks = {
-        rank for rank, total in combined_counts.items()
+        rank
+        for rank, total in combined_counts.items()
         if total >= 2 and hero_counts.get(rank, 0) > 0 and board_counts.get(rank, 0) > 0
     }
     if len(matched_board_ranks) >= 2:
@@ -437,10 +438,18 @@ def assign_bucket(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build deterministic bucket configs (6-8-8).")
-    parser.add_argument("--streets", default="preflop,flop,turn", help="Comma separated streets to build")
-    parser.add_argument("--bins", default="6,8,8", help="Comma separated bin counts for each street")
-    parser.add_argument("--features", default="strength,potential", help="Comma separated feature names")
-    parser.add_argument("--out", default="configs/buckets", help="Output directory for JSON configs")
+    parser.add_argument(
+        "--streets", default="preflop,flop,turn", help="Comma separated streets to build"
+    )
+    parser.add_argument(
+        "--bins", default="6,8,8", help="Comma separated bin counts for each street"
+    )
+    parser.add_argument(
+        "--features", default="strength,potential", help="Comma separated feature names"
+    )
+    parser.add_argument(
+        "--out", default="configs/buckets", help="Output directory for JSON configs"
+    )
     parser.add_argument("--seed", default="42", help="Seed recorded in meta for reproducibility")
     args = parser.parse_args(argv)
 
@@ -465,7 +474,9 @@ def main(argv: list[str] | None = None) -> int:
         config = dict(configs[street])
         config["features"] = features
         if config.get("bins") != bin_count:
-            raise SystemExit(f"Bin mismatch for {street}: expected {config['bins']}, got {bin_count}")
+            raise SystemExit(
+                f"Bin mismatch for {street}: expected {config['bins']}, got {bin_count}"
+            )
         path = out_dir / f"{street}.json"
         with path.open("w", encoding="utf-8") as fh:
             json.dump(config, fh, indent=2, ensure_ascii=False)
