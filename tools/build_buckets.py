@@ -254,14 +254,46 @@ def _is_third_pair_or_under(hole: list[str], board: list[str]) -> bool:
 
 
 def _has_flush_draw(hole_cards: list[str], board_cards: list[str]) -> tuple[bool, bool]:
+    has_flush, _ = _has_flush(hole_cards, board_cards)
+    if has_flush:
+        return False, False
+
     suits_total = Counter(c[-1] for c in hole_cards + board_cards)
-    hero_suits = Counter(c[-1] for c in hole_cards)
+    hero_cards = [parse_card(c) for c in hole_cards]
+    hero_suits = Counter(s for _, s in hero_cards)
     for suit, total in suits_total.items():
-        if total >= 4 and hero_suits.get(suit, 0) >= 1:
-            # nut draw when hero holds ace of suit
-            hero_ranks = [parse_card(c)[0] for c in hole_cards if c[-1] == suit]
+        if total == 4 and hero_suits.get(suit, 0) >= 1:
+            hero_ranks = [rank for rank, card_suit in hero_cards if card_suit == suit]
             return True, "A" in hero_ranks
     return (False, False)
+
+
+def _has_flush(hole_cards: list[str], board_cards: list[str]) -> tuple[bool, bool]:
+    suits_total = Counter(c[-1] for c in hole_cards + board_cards)
+    if not suits_total:
+        return False, False
+
+    hero_cards = [parse_card(c) for c in hole_cards]
+    hero_suits = Counter(s for _, s in hero_cards)
+    for suit, total in suits_total.items():
+        if total >= 5 and hero_suits.get(suit, 0) >= 1:
+            hero_ranks = [rank for rank, card_suit in hero_cards if card_suit == suit]
+            return True, "A" in hero_ranks
+    return False, False
+
+
+def _has_straight(hole_cards: list[str], board_cards: list[str]) -> bool:
+    all_vals = sorted(_rank_value_set(hole_cards + board_cards))
+    if len(all_vals) < 5:
+        return False
+
+    hero_vals = _rank_value_set(hole_cards)
+    for i in range(len(all_vals) - 4):
+        window = all_vals[i : i + 5]
+        if window[-1] - window[0] == 4 and len(window) == 5:
+            if hero_vals & set(window):
+                return True
+    return False
 
 
 def _rank_value_set(cards: list[str]) -> set[int]:
@@ -278,8 +310,10 @@ def _rank_value(card: str) -> int:
 
 
 def _has_open_ended_draw(hole_cards: list[str], board_cards: list[str]) -> bool:
+    if _has_straight(hole_cards, board_cards):
+        return False
     all_vals = sorted(_rank_value_set(hole_cards + board_cards))
-    hero_vals = {_rank_value(c) for c in hole_cards}
+    hero_vals = _rank_value_set(hole_cards)
     if len(all_vals) < 4 or not hero_vals:
         return False
     for i in range(len(all_vals) - 3):
@@ -291,8 +325,10 @@ def _has_open_ended_draw(hole_cards: list[str], board_cards: list[str]) -> bool:
 
 
 def _has_gutshot_draw(hole_cards: list[str], board_cards: list[str]) -> bool:
+    if _has_straight(hole_cards, board_cards):
+        return False
     all_vals = sorted(_rank_value_set(hole_cards + board_cards))
-    hero_vals = {_rank_value(c) for c in hole_cards}
+    hero_vals = _rank_value_set(hole_cards)
     if len(all_vals) < 4 or not hero_vals:
         return False
     for i in range(len(all_vals)):
@@ -326,6 +362,13 @@ def classify_postflop(hole_cards: list[str], board_cards: list[str]) -> str:
     hole_ranks = [parse_card(c)[0] for c in hole_cards]
 
     if _has_two_pair_plus(hole_ranks, board_ranks):
+        return "value_two_pair_plus"
+
+    has_flush, _ = _has_flush(hole_cards, board_cards)
+    if has_flush:
+        return "value_two_pair_plus"
+
+    if _has_straight(hole_cards, board_cards):
         return "value_two_pair_plus"
 
     top_pair, top_pair_strong = _top_pair_category(hole_ranks, board_ranks)

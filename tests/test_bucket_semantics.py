@@ -22,6 +22,9 @@ def _assert_label(street, hole, board, expected_label, configs):
 def test_flop_turn_8bucket_rules_examples(bucket_configs):
     flop_cases = [
         ("value_two_pair_plus", ["Kc", "8c"], ["Kh", "8s", "4d"]),
+        ("value_two_pair_plus", ["Ah", "Kh"], ["Qh", "Th", "2h"]),
+        ("value_two_pair_plus", ["9c", "8d"], ["Jh", "Td", "Qs"]),
+        ("value_two_pair_plus", ["Ah", "5d"], ["2c", "3s", "4h"]),
         ("overpair_or_tptk", ["As", "Kd"], ["Ah", "7s", "2d"]),
         ("top_pair_weak_or_second", ["Kh", "9d"], ["Kc", "8s", "4d"]),
         ("middle_pair_or_third_minus", ["4h", "6d"], ["Kc", "8s", "4d"]),
@@ -44,6 +47,9 @@ def test_flop_turn_8bucket_rules_examples(bucket_configs):
 
     turn_cases = [
         ("value_two_pair_plus", ["Qh", "Qs"], ["Qd", "9c", "2s", "7h"]),
+        ("value_two_pair_plus", ["Ah", "4h"], ["Qh", "Th", "2h", "9d"]),
+        ("value_two_pair_plus", ["Kc", "2d"], ["Jh", "Td", "Qs", "9c"]),
+        ("value_two_pair_plus", ["Ah", "7d"], ["Qh", "Th", "6h", "2h", "9h"]),
         ("overpair_or_tptk", ["As", "Kd"], ["Ah", "7s", "2d", "8c"]),
         ("top_pair_weak_or_second", ["Kh", "9d"], ["Kc", "8s", "4d", "2c"]),
         ("middle_pair_or_third_minus", ["4h", "6d"], ["Qh", "Td", "4s", "2c"]),
@@ -54,6 +60,42 @@ def test_flop_turn_8bucket_rules_examples(bucket_configs):
     ]
     for expected, hole, board in turn_cases:
         _assert_label("turn", hole, board, expected, bucket_configs)
+
+
+def test_flush_on_board_requires_hero_participation(bucket_configs):
+    _, label = build_buckets.assign_bucket(
+        "turn",
+        ["As", "Kd"],
+        ["Qh", "Th", "6h", "2h", "9h"],
+        configs=bucket_configs,
+    )
+    assert label == "weak_draw"
+
+    _assert_label(
+        "turn",
+        ["Ah", "7d"],
+        ["Qh", "Th", "6h", "2h", "9h"],
+        "value_two_pair_plus",
+        bucket_configs,
+    )
+
+
+def test_straight_on_board_requires_hero_participation(bucket_configs):
+    _, label = build_buckets.assign_bucket(
+        "turn",
+        ["As", "2d"],
+        ["Jh", "Th", "Qs", "9c", "8d"],
+        configs=bucket_configs,
+    )
+    assert label == "weak_draw"
+
+    _assert_label(
+        "turn",
+        ["Kc", "2d"],
+        ["Jh", "Th", "Qs", "9c", "8d"],
+        "value_two_pair_plus",
+        bucket_configs,
+    )
 
 
 def test_preflop_6bucket_equiv_classes(bucket_configs):
