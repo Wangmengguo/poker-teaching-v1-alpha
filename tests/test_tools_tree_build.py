@@ -122,3 +122,73 @@ def test_valid_node_references_pass_validation(tmp_path):
     rc = build_tree.main(["--config", str(config_path), "--out", str(out_path)])
     assert rc == 0
     assert out_path.exists()
+
+
+def test_null_terminals_handling(tmp_path):
+    """测试terminals: null的正确处理"""
+    # 创建一个包含null terminals的配置
+    null_terminals_config = {
+        "nodes": [
+            {
+                "id": "root",
+                "street": "preflop",
+                "role": "ip",
+                "actions": [{"name": "fold", "next": "terminal"}],  # 引用存在的节点
+            },
+            {"id": "terminal", "street": "preflop", "role": "terminal", "actions": []},
+        ],
+        "terminals": None,  # YAML中的null值
+    }
+
+    # 写入临时配置文件
+    config_path = tmp_path / "null_terminals_config.yaml"
+    import yaml
+
+    with open(config_path, "w") as f:
+        yaml.dump(null_terminals_config, f)
+
+    out_path = tmp_path / "tree.json"
+
+    # 应该成功构建，null terminals应该被当作空列表处理
+    rc = build_tree.main(["--config", str(config_path), "--out", str(out_path)])
+    assert rc == 0
+    assert out_path.exists()
+
+    # 验证输出中的terminals字段
+    artifact = json.loads(out_path.read_text())
+    assert artifact["terminals"] == []  # 应该被转换为空列表
+
+
+def test_missing_terminals_handling(tmp_path):
+    """测试缺少terminals字段的正确处理"""
+    # 创建一个缺少terminals字段的配置
+    no_terminals_config = {
+        "nodes": [
+            {
+                "id": "root",
+                "street": "preflop",
+                "role": "ip",
+                "actions": [{"name": "fold", "next": "terminal"}],  # 引用存在的节点
+            },
+            {"id": "terminal", "street": "preflop", "role": "terminal", "actions": []},
+        ]
+        # 完全没有terminals字段
+    }
+
+    # 写入临时配置文件
+    config_path = tmp_path / "no_terminals_config.yaml"
+    import yaml
+
+    with open(config_path, "w") as f:
+        yaml.dump(no_terminals_config, f)
+
+    out_path = tmp_path / "tree.json"
+
+    # 应该成功构建，缺失terminals应该被当作空列表处理
+    rc = build_tree.main(["--config", str(config_path), "--out", str(out_path)])
+    assert rc == 0
+    assert out_path.exists()
+
+    # 验证输出中的terminals字段
+    artifact = json.loads(out_path.read_text())
+    assert artifact["terminals"] == []  # 应该被转换为空列表

@@ -43,7 +43,8 @@ def _build_nodes(config: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dic
     node_ids: set[str] = set()
 
     # 收集所有有效的目标节点ID（包括terminals）
-    terminals = set(config.get("terminals", []))
+    terminals_cfg = config.get("terminals") or []
+    terminals = set(terminals_cfg)
     valid_targets = set()
 
     # 首先收集所有节点ID
@@ -132,7 +133,7 @@ def build_tree_artifact(config_path: Path) -> dict[str, Any]:
         "meta": meta,
         "nodes": nodes,
         "edges": edges,
-        "terminals": config.get("terminals", []),
+        "terminals": config.get("terminals") or [],
     }
 
 
