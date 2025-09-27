@@ -8,10 +8,13 @@ from poker_core.domain.actions import LegalAction
 from poker_core.suggest.codes import SCodes
 from poker_core.suggest.codes import mk_rationale as R
 from poker_core.suggest.context import SuggestContext
-from poker_core.suggest.decision import Decision, SizeSpec
+from poker_core.suggest.decision import Decision
+from poker_core.suggest.decision import SizeSpec
 from poker_core.suggest.preflop_tables import bucket_facing_size
-from poker_core.suggest.types import Observation, PolicyConfig
-from poker_core.suggest.utils import find_action, pick_betlike_action
+from poker_core.suggest.types import Observation
+from poker_core.suggest.types import PolicyConfig
+from poker_core.suggest.utils import find_action
+from poker_core.suggest.utils import pick_betlike_action
 
 from .calculators import pot_odds
 

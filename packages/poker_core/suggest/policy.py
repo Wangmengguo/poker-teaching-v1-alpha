@@ -13,21 +13,24 @@ from typing import Any
 
 from .codes import SCodes
 from .codes import mk_rationale as R
-from .decision import Decision, SizeSpec
+from .decision import Decision
+from .decision import SizeSpec
 from .flop_rules import get_flop_rules
-from .policy_preflop import decide_bb_defend, decide_sb_open, decide_sb_vs_threebet
+from .policy_preflop import decide_bb_defend
+from .policy_preflop import decide_sb_open
+from .policy_preflop import decide_sb_vs_threebet
 from .preflop_tables import bucket_facing_size
-from .turn_river_rules import get_river_rules, get_turn_rules
-from .types import Observation, PolicyConfig
-from .utils import (
-    HC_OP_TPTK,
-    HC_STRONG_DRAW,
-    HC_VALUE,
-    find_action,
-    pick_betlike_action,
-    stable_weighted_choice,
-    to_call_from_acts,
-)
+from .turn_river_rules import get_river_rules
+from .turn_river_rules import get_turn_rules
+from .types import Observation
+from .types import PolicyConfig
+from .utils import HC_OP_TPTK
+from .utils import HC_STRONG_DRAW
+from .utils import HC_VALUE
+from .utils import find_action
+from .utils import pick_betlike_action
+from .utils import stable_weighted_choice
+from .utils import to_call_from_acts
 
 # 与 analysis 中口径保持一致的范围判定（避免耦合：基于 tags/hand_class）
 OPEN_RANGE_TAGS = {"pair", "suited_broadway", "Ax_suited", "broadway_offsuit"}

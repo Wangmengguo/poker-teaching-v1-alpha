@@ -26,7 +26,8 @@ def _fallback_strength(cards7: list[str]) -> int:
     Keeps behavior compatible with existing tests when `pokerkit` is not
     installed. Uses project-local card utilities.
     """
-    from .cards import get_rank_value, parse_card
+    from .cards import get_rank_value
+    from .cards import parse_card
 
     values = [get_rank_value(parse_card(c)[0]) for c in cards7]
     return sum(sorted(values, reverse=True)[:5])

@@ -1,4 +1,6 @@
-from .interfaces import EvalResult, HandEvaluator, Strength
+from .interfaces import EvalResult
+from .interfaces import HandEvaluator
+from .interfaces import Strength
 
 __all__ = [
     "HandEvaluator",

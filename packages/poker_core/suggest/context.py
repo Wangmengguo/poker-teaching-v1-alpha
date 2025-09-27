@@ -7,13 +7,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from .preflop_tables import (
-    config_profile_name,
-    config_strategy_name,
-    get_modes,
-    get_open_table,
-    get_vs_table,
-)
+from .preflop_tables import config_profile_name
+from .preflop_tables import config_strategy_name
+from .preflop_tables import get_modes
+from .preflop_tables import get_open_table
+from .preflop_tables import get_vs_table
 
 
 @dataclass(frozen=True)

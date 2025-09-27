@@ -6,7 +6,8 @@ from hashlib import sha1
 from math import isfinite
 from typing import Any
 
-from poker_core.cards import RANK_ORDER, parse_card
+from poker_core.cards import RANK_ORDER
+from poker_core.cards import parse_card
 from poker_core.domain.actions import LegalAction
 
 from .preflop_tables import get_modes

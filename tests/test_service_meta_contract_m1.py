@@ -4,7 +4,8 @@ from fractions import Fraction
 
 import pytest
 from poker_core.domain.actions import LegalAction
-from poker_core.suggest.service import POLICY_REGISTRY_V1, build_suggestion
+from poker_core.suggest.service import POLICY_REGISTRY_V1
+from poker_core.suggest.service import build_suggestion
 
 
 @dataclass

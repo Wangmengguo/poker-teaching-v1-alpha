@@ -4,9 +4,12 @@
 
 from collections.abc import Sequence
 
-from poker_core.cards import get_rank_value, parse_card
+from poker_core.cards import get_rank_value
+from poker_core.cards import parse_card
 
-from .interfaces import EvalResult, HandEvaluator, Strength
+from .interfaces import EvalResult
+from .interfaces import HandEvaluator
+from .interfaces import Strength
 
 
 def _score7(hole: Sequence[str], board: Sequence[str]) -> tuple[int, list[str]]:

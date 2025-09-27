@@ -1,10 +1,8 @@
 # tests/test_state_hu_minimal.py
-from poker_core.state_hu import (
-    apply_action,
-    settle_if_needed,
-    start_hand,
-    start_session,
-)
+from poker_core.state_hu import apply_action
+from poker_core.state_hu import settle_if_needed
+from poker_core.state_hu import start_hand
+from poker_core.state_hu import start_session
 
 
 def test_one_hand_checkdown_showdown():
@@ -37,7 +35,8 @@ def test_short_call_refund_and_auto_advance():
     assert gs.players[0].invested_street == 102  # 1(SB) + 1(to_call) + 100 = 102
 
     # 修改玩家1的可用筹码，让它只有50筹码
-    from poker_core.state_hu import _replace_player, _update_player
+    from poker_core.state_hu import _replace_player
+    from poker_core.state_hu import _update_player
 
     p1_new = _replace_player(gs.players[1], stack=50)  # 假设玩家1只有50筹码可用
     gs = _update_player(gs, 1, p1_new)

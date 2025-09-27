@@ -11,7 +11,9 @@ from typing import Any
 from poker_core.analysis import annotate_player_hand_from_gs
 from poker_core.suggest.observations import build_observation
 
-from ..domain.actions import LegalAction, legal_actions_struct, to_act_index
+from ..domain.actions import LegalAction
+from ..domain.actions import legal_actions_struct
+from ..domain.actions import to_act_index
 from .calculators import pot_odds as calc_pot_odds
 from .codes import SCodes
 from .codes import mk_rationale as R
@@ -19,16 +21,18 @@ from .context import SuggestContext
 from .decision import Decision
 from .explanations import render_explanations
 from .fallback import choose_conservative_line
-from .policy import (
-    policy_flop_v1,
-    policy_postflop_v0_3,
-    policy_preflop_v0,
-    policy_preflop_v1,
-    policy_river_v1,
-    policy_turn_v1,
-)
-from .types import Observation, PolicyConfig
-from .utils import drop_nones, raise_to_amount, size_to_amount, stable_roll
+from .policy import policy_flop_v1
+from .policy import policy_postflop_v0_3
+from .policy import policy_preflop_v0
+from .policy import policy_preflop_v1
+from .policy import policy_river_v1
+from .policy import policy_turn_v1
+from .types import Observation
+from .types import PolicyConfig
+from .utils import drop_nones
+from .utils import raise_to_amount
+from .utils import size_to_amount
+from .utils import stable_roll
 
 
 def _build_observation(gs, actor: int, acts: list[LegalAction]):
@@ -250,14 +254,15 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
     fallback_rationale: list[dict[str, Any]] = []
 
     def _engage_fallback(reason: str | None = None) -> None:
-        nonlocal suggested, fallback_used, fallback_meta, fallback_rationale
+        nonlocal suggested, fallback_used, fallback_meta, fallback_rationale, meta_from_policy
         fb_suggested, fb_meta, fb_rationale = choose_conservative_line(obs, acts)
         fallback_used = True
         suggested = fb_suggested
-        fallback_meta.update(fb_meta or {})
-        fallback_rationale.extend(fb_rationale or [])
+        fallback_meta = dict(fb_meta or {})
+        fallback_rationale = list(fb_rationale or [])
         if reason:
             fallback_meta.setdefault("fallback_reason", reason)
+        meta_from_policy = dict(fallback_meta)
 
     try:
         out = policy_fn(obs, cfg)

@@ -5,13 +5,11 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from .utils import (
-    HC_MID_OR_THIRD_MINUS,
-    HC_OP_TPTK,
-    HC_STRONG_DRAW,
-    HC_VALUE,
-    HC_WEAK_OR_AIR,
-)
+from .utils import HC_MID_OR_THIRD_MINUS
+from .utils import HC_OP_TPTK
+from .utils import HC_STRONG_DRAW
+from .utils import HC_VALUE
+from .utils import HC_WEAK_OR_AIR
 
 
 @dataclass(frozen=True)
