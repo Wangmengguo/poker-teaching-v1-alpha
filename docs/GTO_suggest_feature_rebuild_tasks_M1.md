@@ -221,7 +221,7 @@
 
 ## C. Explanations & Codes（教学解释）
 
-### 任务 C1：中文模板扩展（频率/混合/回退）
+### ✅ 任务 C1：中文模板扩展（频率/混合/回退）
 - 先写的测试
   - `tests/test_explanations_frequency_phrase.py`
     - `test_frequency_phrase_rendered()`：当 `meta.frequency=0.75` 渲染 “混合策略抽样（~75%）”。
@@ -232,6 +232,9 @@
   - 模板 JSON 更新；新增测试。
 - DoD
   - 渲染测试通过；现有渲染测试不回归。
+
+#### C 阶段完成情况小结
+- ✅ C1 完成：频率混合口径与河牌模板上线，并由新增渲染测试覆盖。
 
 ---
 

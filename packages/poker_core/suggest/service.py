@@ -136,9 +136,7 @@ def _clamp_amount_if_needed(
     )
 
 
-def _describe_frequency(freq: Any) -> str | None:
-    """Convert a numeric or textual frequency into a natural-language snippet."""
-
+def _parse_frequency_value(freq: Any) -> float | None:
     if freq is None:
         return None
 
@@ -150,7 +148,6 @@ def _describe_frequency(freq: Any) -> str | None:
             if not text:
                 return None
             if "/" in text and "%" not in text:
-                # Support fractions like "1/3"
                 num, _, denom = text.partition("/")
                 value = float(num) / float(denom) if denom else None
             else:
@@ -159,10 +156,7 @@ def _describe_frequency(freq: Any) -> str | None:
                 if "%" in text or value > 1.0:
                     value /= 100.0
         elif isinstance(freq, Real) or hasattr(freq, "__float__"):
-            try:
-                value = float(freq)
-            except Exception:
-                return None
+            value = float(freq)
         else:
             return None
     except Exception:
@@ -175,33 +169,164 @@ def _describe_frequency(freq: Any) -> str | None:
         value = 0.0
     if value > 1:
         value = 1.0
+    return value
 
-    pct_float = value * 100.0
-    pct = int(round(pct_float))
+
+def _frequency_label(value: float) -> str:
+    pct = int(round(value * 100.0))
     pct = max(0, min(100, pct))
-    is_tiny_positive = value > 0 and pct == 0
-
     if pct >= 95:
-        label = "几乎总是"
-    elif pct >= 70:
-        label = "大多数时候"
-    elif pct >= 45:
-        label = "约一半时间"
-    elif pct >= 20:
-        label = "偶尔出现"
-    elif pct >= 5:
-        label = "偶发出现"
-    elif value > 0:
-        label = "极少出现"
-    else:
-        label = "几乎不出现"
+        return "几乎总是"
+    if pct >= 70:
+        return "大多数时候"
+    if pct >= 45:
+        return "约一半时间"
+    if pct >= 20:
+        return "偶尔出现"
+    if pct >= 5:
+        return "偶发出现"
+    if value > 0:
+        return "极少出现"
+    return "几乎不出现"
 
-    if is_tiny_positive:
-        percent_text = "<1%"
-    else:
-        percent_text = f"{pct}%"
 
-    return f"建议频率：{label}（约 {percent_text}）"
+def _frequency_pct_text(value: float) -> str:
+    pct = int(round(value * 100.0))
+    pct = max(0, min(100, pct))
+    if 0 < value and pct == 0:
+        return "<1%"
+    return f"{pct}%"
+
+
+def _frequency_context(freq: Any) -> dict[str, Any] | None:
+    value = _parse_frequency_value(freq)
+    if value is None:
+        return None
+    pct_text = _frequency_pct_text(value)
+    label = _frequency_label(value)
+    phrase = f"混合策略抽样（~{pct_text}）"
+    return {
+        "frequency_value": value,
+        "frequency_pct_text": pct_text,
+        "frequency_label": label,
+        "frequency_phrase": phrase,
+    }
+
+
+def _describe_frequency(freq: Any) -> str | None:
+    ctx = _frequency_context(freq)
+    if not ctx:
+        return None
+    return ctx["frequency_phrase"]
+
+
+_RIVER_TIER_LABELS = {
+    "strong_value": "强成手",
+    "medium_value": "中等成手",
+    "weak_showdown": "弱摊牌",
+    "air": "空气牌",
+}
+
+_RIVER_TIER_PLAN_DEFAULTS = {
+    "strong_value": "薄价值下注或设置诱导线",
+    "medium_value": "控制底池，保留摊牌",
+    "weak_showdown": "优先免费摊牌，面对压力可弃牌",
+    "air": "可用小注阻塞或直接放弃",
+}
+
+_RIVER_BLOCKER_LABELS = {
+    "nut_flush_blocker": "坚果同花阻断",
+    "straight_blocker": "关键顺子阻断",
+    "full_house_blocker": "满堂红阻断",
+}
+
+_RIVER_BLOCKER_ACTIONS = {
+    "nut_flush_blocker": "转为过牌诱导，避免阻断价值",
+    "straight_blocker": "过牌控制下注节奏",
+    "full_house_blocker": "控制底池，警惕被反超",
+}
+
+_RIVER_FACING_SIZE_TEXT = {
+    "third": "小注（约 1/3 彩池）",
+    "half": "中注（约 1/2 彩池）",
+    "two_third+": "大注（≥ 2/3 彩池）",
+    "pot": "满池下注",
+    "all_in": "全下",
+}
+
+_ACTION_DECISION_TEXT = {
+    "bet": "主动下注争取价值",
+    "raise": "加注施压",
+    "call": "跟注防守",
+    "check": "过牌控制",
+    "fold": "弃牌保守",
+    "allin": "全下对抗",
+}
+
+
+def _action_decision_text(suggested: dict[str, Any] | None) -> str:
+    action = str((suggested or {}).get("action") or "").lower()
+    return _ACTION_DECISION_TEXT.get(action, "沿用当前策略")
+
+
+def _river_explanation_items(
+    street: str, meta: dict[str, Any], suggested: dict[str, Any] | None
+) -> list[dict[str, Any]]:
+    if str(street or "").lower() != "river":
+        return []
+
+    items: list[dict[str, Any]] = []
+    tier_key = str((meta or {}).get("river_value_tier") or "")
+    tier_label = _RIVER_TIER_LABELS.get(tier_key, tier_key or "")
+    plan_text = str((meta or {}).get("plan") or "").strip()
+    if not plan_text:
+        plan_text = _RIVER_TIER_PLAN_DEFAULTS.get(tier_key, "")
+
+    if tier_label and plan_text:
+        items.append(
+            R(
+                SCodes.RIVER_VALUE_TIER_SUMMARY,
+                data={
+                    "river_value_tier_label": tier_label,
+                    "river_plan_text": plan_text,
+                },
+            )
+        )
+
+    blockers = list((meta or {}).get("river_blockers") or [])
+    if blockers:
+        blk_key = str(blockers[0])
+        blocker_label = _RIVER_BLOCKER_LABELS.get(blk_key, blk_key)
+        adjust_text = _RIVER_BLOCKER_ACTIONS.get(blk_key)
+        if not adjust_text:
+            adjust_text = plan_text or _action_decision_text(suggested)
+        items.append(
+            R(
+                SCodes.RIVER_BLOCKER_ADJUST,
+                data={
+                    "river_blocker_label": blocker_label,
+                    "river_blocker_action": adjust_text,
+                },
+            )
+        )
+
+    facing_tag = str((meta or {}).get("facing_size_tag") or "").strip().lower()
+    if facing_tag and facing_tag != "na":
+        facing_text = _RIVER_FACING_SIZE_TEXT.get(facing_tag, facing_tag)
+        decision_text = _action_decision_text(suggested)
+        label = tier_label or _RIVER_TIER_LABELS.get(tier_key, tier_key)
+        items.append(
+            R(
+                SCodes.RIVER_FACING_DECISION,
+                data={
+                    "facing_size_text": facing_text,
+                    "river_value_tier_label": label or "河牌",
+                    "river_facing_decision": decision_text,
+                },
+            )
+        )
+
+    return items
 
 
 # 策略注册表（按版本/街选择）。PR-0：v1 映射到 v0 占位，保证行为不变。
@@ -604,21 +729,38 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
 
     # Optional: render natural-language explanations for teaching UI
     try:
-        # Minimal extras to enrich templates
         extras = {
             "action": (resp.get("suggested") or {}).get("action"),
             "amount": (resp.get("suggested") or {}).get("amount"),
         }
-        exp_list = list(
-            render_explanations(rationale=rationale, meta=resp.get("meta"), extras=extras)
+        meta_ref = resp.get("meta")
+        if not isinstance(meta_ref, dict):
+            meta_ref = {}
+            resp["meta"] = meta_ref
+        augmented = list(rationale or [])
+
+        freq_ctx = _frequency_context(meta_ref.get("frequency"))
+        if freq_ctx:
+            meta_ref["frequency_value"] = freq_ctx["frequency_value"]
+            meta_ref["frequency_pct_text"] = freq_ctx["frequency_pct_text"]
+            meta_ref["frequency_phrase"] = freq_ctx["frequency_phrase"]
+            if freq_ctx.get("frequency_label"):
+                meta_ref["frequency_label"] = freq_ctx["frequency_label"]
+            freq_data: dict[str, Any] = {
+                "frequency_pct": freq_ctx["frequency_pct_text"],
+            }
+            if freq_ctx.get("frequency_label"):
+                freq_data["frequency_label"] = freq_ctx["frequency_label"]
+            augmented.append(R(SCodes.MIX_FREQUENCY_HINT, data=freq_data))
+
+        augmented.extend(
+            _river_explanation_items(getattr(obs, "street", ""), meta_ref, resp.get("suggested"))
         )
-        freq_text = _describe_frequency((resp.get("meta") or {}).get("frequency"))
-        if freq_text:
-            exp_list.append(freq_text)
+
+        exp_list = list(render_explanations(rationale=augmented, meta=meta_ref, extras=extras))
         if exp_list:
             resp["explanations"] = exp_list
     except Exception:
-        # Keep optional; never fail the main suggest flow
         pass
 
     return drop_nones(resp)

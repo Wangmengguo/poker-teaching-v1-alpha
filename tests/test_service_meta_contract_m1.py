@@ -155,19 +155,18 @@ def test_explanations_render_frequency_when_present(monkeypatch, patch_analysis,
     result = build_suggestion(gs, actor=1)
 
     exp = result.get("explanations") or []
-    freq_lines = [line for line in exp if "频率" in line]
+    freq_lines = [line for line in exp if "混合策略抽样" in line]
     assert freq_lines, exp
     combined = " ".join(freq_lines)
     assert expected in combined
-    assert any(keyword in combined for keyword in ("建议频率", "大多数", "极少", "偶尔"))
 
 
 @pytest.mark.parametrize(
     "freq, expected_bits",
     [
-        (Fraction(1, 3), ["33%", "偶尔"]),
-        (Decimal("0.71"), ["71%", "大多数"]),
-        (Fraction(1, 250), ["<1%", "极少"]),
+        (Fraction(1, 3), ["~33%"]),
+        (Decimal("0.71"), ["~71%"]),
+        (Fraction(1, 250), ["~<1%"]),
     ],
 )
 def test_describe_frequency_supports_rationals_and_decimals(freq, expected_bits):
