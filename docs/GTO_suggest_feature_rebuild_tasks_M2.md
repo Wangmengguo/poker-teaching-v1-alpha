@@ -8,7 +8,7 @@
 
 ### G. LP 求解 & 策略表产出（离线）
 
-#### 任务 G1：LP 求解器模块化封装（HiGHS/linprog 双后端）
+#### ✅ 任务 G1：LP 求解器模块化封装（HiGHS/linprog 双后端）
 - 先写的测试
   - `tests/test_lp_solver_backend.py`
     - `test_highs_solver_solves_toy_tree()`：提供玩具 2 节点树与约束，断言 HiGHS 后端返回可行策略、收益与对偶价格。
@@ -28,7 +28,7 @@
 - DoD
   - 测试通过；两种后端均可运行玩具树；异常路径提供明确错误信息；CI 无 HiGHS 时自动回退。
 
-#### 任务 G2：策略表导出工具 `tools.export_policy`
+#### ✅ 任务 G2：策略表导出工具 `tools.export_policy`
 - 先写的测试
   - `tests/test_policy_export.py`
     - `test_export_policy_writes_npz_and_metadata()`：调用工具后生成 `artifacts/policies/{preflop,postflop}.npz`，文件内含 `actions, weights, meta`。
@@ -48,7 +48,7 @@
 - DoD
   - 测试通过；NPZ 文件含所需数组；meta 字段齐备；调试 JSONL 可选输出；重复运行产出一致。
 
-#### 任务 G3：离线流水线集成命令 `tools.m2_smoke`
+#### ✅ 任务 G3：离线流水线集成命令 `tools.m2_smoke`
 - 先写的测试
   - `tests/test_tools_smoke_m2.py`
     - `test_m2_smoke_generates_all_artifacts()`：在空产物目录运行 `python -m tools.m2_smoke --quick --out reports/m2_smoke.md`，断言生成策略表、LP 日志、评测样例。

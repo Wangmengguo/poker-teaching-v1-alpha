@@ -2,4 +2,6 @@
 
 __all__ = [
     "lp_solver",
+    "export_policy",
+    "m2_smoke",
 ]
