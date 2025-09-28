@@ -351,6 +351,13 @@ POLICY_REGISTRY_V1: dict[str, PolicyFn] = {
 POLICY_REGISTRY: dict[str, PolicyFn] = POLICY_REGISTRY_V0
 
 
+def _policy_source_flag() -> str:
+    raw = (os.getenv("SUGGEST_POLICY_SOURCE") or "rules").strip().lower()
+    if raw == "lp_table":
+        return "lp_table"
+    return "rules"
+
+
 def _choose_policy_version(hand_id: str) -> str:
     """返回 'v0' 或 'v1'（PR-0 中 v1 与 v0 行为一致，仅用于灰度管控与调试展示）。"""
     mode = (os.getenv("SUGGEST_POLICY_VERSION") or "v0").strip().lower()
@@ -566,6 +573,7 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
 
     # meta 仅在有值时返回；由策略层提供
     meta_dict = dict(meta_from_policy or {})
+    meta_dict.setdefault("policy_source", _policy_source_flag())
     meta_dict.setdefault("baseline", "GTO")
     meta_dict.setdefault("mode", "GTO")
     street = str(getattr(obs, "street", "") or "").strip().lower()
@@ -592,6 +600,9 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
             meta_dict["node_key"] = node_key_from_observation(obs)
         except Exception:
             meta_dict["node_key"] = None
+    if fallback_used:
+        meta_dict["policy_source"] = "fallback"
+        meta_dict["fallback_used"] = True
     meta_clean = drop_nones(meta_dict)
     if meta_clean:
         resp["meta"] = meta_clean
@@ -701,6 +712,13 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
         if version == "v1" or (os.getenv("SUGGEST_DEBUG") or "0") == "1":
             action = str(resp.get("suggested", {}).get("action", ""))
             amount = resp.get("suggested", {}).get("amount")
+            meta_ref = resp.get("meta") or {}
+            mix_info = meta_ref.get("mix") if isinstance(meta_ref, dict) else None
+            mix_applied = bool(mix_info)
+            fallback_flag = bool(meta_ref.get("fallback_used") or fallback_used)
+            mix_index = None
+            if isinstance(mix_info, dict):
+                mix_index = mix_info.get("chosen_index")
             log.info(
                 "suggest_v1",
                 extra={
@@ -722,6 +740,12 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
                     "fourbet_to_bb": (resp.get("meta") or {}).get("fourbet_to_bb"),
                     "bucket": (resp.get("meta") or {}).get("bucket"),
                     "rule_path": (resp.get("meta") or {}).get("rule_path"),
+                    "node_key": (resp.get("meta") or {}).get("node_key"),
+                    "policy_source": (resp.get("meta") or {}).get("policy_source"),
+                    "mix_applied": mix_applied,
+                    "mix.chosen_index": mix_index,
+                    "fallback_used": fallback_flag,
+                    "frequency": (resp.get("meta") or {}).get("frequency"),
                 },
             )
     except Exception:

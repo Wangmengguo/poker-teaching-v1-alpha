@@ -43,7 +43,10 @@ def choose_conservative_line(
         raise ValueError("No legal actions available for fallback")
 
     rationale = [R(SCodes.CFG_FALLBACK_USED)]
-    meta: dict[str, Any] = {}
+    meta: dict[str, Any] = {
+        "policy_source": "fallback",
+        "fallback_used": True,
+    }
 
     check = find_action(acts, "check")
     call = find_action(acts, "call")

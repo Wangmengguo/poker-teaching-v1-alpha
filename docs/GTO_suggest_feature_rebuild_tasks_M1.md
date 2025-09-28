@@ -233,14 +233,11 @@
 - DoD
   - 渲染测试通过；现有渲染测试不回归。
 
-#### C 阶段完成情况小结
-- ✅ C1 完成：频率混合口径与河牌模板上线，并由新增渲染测试覆盖。
-
 ---
 
 ## D. Telemetry & Logging（观测）
 
-### 任务 D1：结构化日志字段补全（与 Plan 指标清单对齐）
+### ✅ 任务 D1：结构化日志字段补全（与 Plan 指标清单对齐）
 - 先写的测试
   - `tests/test_telemetry_logging_fields.py`
     - `test_log_contains_policy_and_rule_path()`：`caplog` 断言日志含 `policy_name, street, action, size_tag, rule_path`。
@@ -258,7 +255,7 @@
 
 ## E. Feature Flags（灰度与默认）
 
-### 任务 E1：特性开关与默认值（统一文档口径：默认 off）
+### ✅ 任务 E1：特性开关与默认值（统一文档口径：默认 off）
 - 先写的测试
   - 复用 `tests/test_mixing_determinism.py::test_mixing_off_chooses_max_weight()` 覆盖默认关闭。
 - 实现要点
@@ -274,7 +271,7 @@
 
 ## F. 性能基线（轻量门禁）
 
-### 任务 F1：P95 轻量验收（慢测）
+### ✅ 任务 F1：P95 轻量验收（慢测）
 - 先写的测试
   - `tests/test_performance_p95_baseline.py`（标记 `@pytest.mark.slow`）
     - 固定种子生成 100 随机局面，端到端 `build_suggestion` 的 P95 ≤ 1s（或折算 500ms × 100 样本）。

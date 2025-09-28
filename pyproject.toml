@@ -66,6 +66,9 @@ force-single-line = true
 addopts = "-q"
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "slow: marks performance-oriented slow tests",
+]
 
 [tool.coverage.report]
 show_missing = true
