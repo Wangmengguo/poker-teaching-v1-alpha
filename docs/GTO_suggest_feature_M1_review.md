@@ -33,11 +33,12 @@
 - **Fallback pot odds**：对极端 `to_call`/`pot_now` 情形提供 1.0 默认值，确保除零安全；建议未来将 `_pot_odds` 的 25% 阈值参数化以便策略调优。【F:packages/poker_core/suggest/fallback.py†L31-L123】
 
 ## Known Risks & Follow-up Suggestions
-1. **第三方依赖缺失导致全套 `pytest` 无法完整运行**：当前环境缺少 `pokerkit`，导致 collection 阶段失败（`tests/providers/test_pokerkit_evaluator_basic.py`）。建议在 CI 中安装依赖或为相关测试加上可跳过标记，以免阻塞回归套件。【76881d†L1-L63】
-2. **性能基准仍待实测**：计划要求端到端 P95 ≤1s，目前缺乏系统性基准测试记录；可优先实现 `tests/test_performance_p95_baseline.py` 的慢测脚本并在报告中拆分冷启动/热路径。
-3. **规则覆盖的极端 pot_type/位置**：虽有 node key 支持 `limped` 与三街角色，但仍建议补充 3-bet/4-bet（计划 M2/M3）及 OOP delay 线路的回归用例，防止规则树 defaults 过度 fallback。
-4. **Lookup 容差与实际表值偏差**：目前容差阈值 0.12 来自配置，建议在将来与真实策略表对比时加上报警/metrics，以捕捉 outs 估计漂移。  
+1. **第三方依赖缺失导致全套 `pytest` 无法完整运行**：当前环境缺少 `pokerkit`，导致 collection 阶段失败（`tests/providers/test_pokerkit_evaluator_basic.py`）。已在 M2 任务 `J3` 中规划 CI 依赖守护与跳过策略，需在合并前补齐脚本与配置。【76881d†L1-L63】【F:docs/GTO_suggest_feature_rebuild_tasks_M2.md†L205-L225】
+2. **性能基准仍待实测**：计划要求端到端 P95 ≤1s，目前缺乏系统性基准测试记录；M2 任务 `I1` 要求迁移/升级 `tests/test_performance_p95_baseline.py`，在策略查表路径下输出冷/热对比及报告存档。【F:docs/GTO_suggest_feature_rebuild_tasks_M2.md†L152-L173】
+3. **规则覆盖的极端 pot_type/位置**：虽有 node key 支持 `limped` 与三街角色，但仍建议补充 3-bet/4-bet（计划 M2/M3）及 OOP delay 线路的回归用例，防止规则树 defaults 过度 fallback。M2 新增任务 `H5` 专门覆盖这些节点并要求报告可观测。【F:docs/GTO_suggest_feature_rebuild_tasks_M2.md†L101-L136】
+4. **Lookup 容差与实际表值偏差**：目前容差阈值 0.12 来自配置，建议在将来与真实策略表对比时加上报警/metrics，以捕捉 outs 估计漂移。M2 任务 `J2` 追加 `lookup_ev_diff_pct` 指标与告警报告，纳入运维监控。【F:docs/GTO_suggest_feature_rebuild_tasks_M2.md†L190-L207】
 
 ## Conclusion
 - Offline 产物生成、规则路径、混合基础设施、保守回退和教学解释等 M1 核心能力均已落地，并与技术规划保持一致，能够支撑上线级的规则版 suggest baseline。
 - 需在持续集成中补齐外部依赖与慢测脚本，确保性能与第三方模块的可复现性；同时为未来策略表接入预留监控/容差调优机制。
+- Compare & Tune（老师-学生对照与自动调参）已整体挪至 M2 任务 `K1–K3`，待策略表产出与评测路径稳定后统一执行。

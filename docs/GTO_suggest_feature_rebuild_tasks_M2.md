@@ -2,6 +2,8 @@
 
 本章节对应 Roadmap 中的 M2（Week 3–4），主要目标：离线 LP 求解产物、策略表导出、运行时查表接入、基线评测（≥ +20~30 BB/100，95% CI>0），并补齐教学口语化频率。各任务遵循“先写测试”→“实现要点”→“交付物”→“验收标准（DoD）”的结构，便于敏捷迭代与跟踪。
 
+> 注：本阶段同时承接《GTO_suggest_feature_M1_review.md》中的风险项（依赖缺失、性能基准、极端规则覆盖、查表偏差监控），并将 Compare & Tune（老师-学生对照与自动调参）整体后置至此阶段统一交付。
+
 ---
 
 ### G. LP 求解 & 策略表产出（离线）
@@ -114,6 +116,21 @@
 - DoD
   - 测试通过；策略查表键与离线桶映射对齐；缺失桶信息路径有日志与降级说明。
 
+#### 任务 H5：极端规则路径覆盖扩展（3-bet/4-bet、OOP Delay）
+- 先写的测试
+  - `tests/test_policy_extreme_nodes.py`
+    - `test_three_bet_and_four_bet_paths_present()`：对 `pot_type=3bet/4bet`、`role=oop/ip` 的节点，断言策略表或规则配置存在，且缺失时落到兜底并记录 `policy_fallback=true`。
+    - `test_delay_lines_rule_path_consistency()`：对 OOP delay 线路抽样，验证 `meta.rule_path` 与策略表动作一致，避免默认 fallback。
+    - `test_missing_extreme_rule_triggers_todo_marker()`：当覆盖缺失时，测试捕获标记（如结构化日志 `extreme_rule_missing=true`），提示补充配置。
+- 实现要点
+  - 扩充 `configs/rules` 与策略导出流程，显式覆盖 3-bet/4-bet pot_type、OOP delay 线路，并在树/策略产出中固化这些节点。
+  - 若暂未能提供策略表，要求规则 fallback 记录 TODO 提示并在报告中聚合（配合 `tools.audit_policy_vs_rules`）。
+  - 将该测试纳入慢测标签，确保在 CI/回归中执行（可提供 quick 模式抽样 2–3 个节点）。
+- 交付物
+  - 新增测试与规则/策略配置补齐；审计报告更新。
+- DoD
+  - 测试通过；极端 pot_type/位置节点在策略或规则层面有明确覆盖，fallback 仅在标记条件下触发并可观测。
+
 ---
 
 ### I. 评测与基线验证
@@ -126,6 +143,7 @@
     - `test_profiled_metrics_exported()`：运行测试后生成 `reports/perf_policy.json`，包含命中率、加载耗时、缓存情况。
 - 实现要点
   - 扩展现有性能框架，记录冷启动强制重载流程；统计写入 JSON/Markdown 供持续监控。
+  - 继承 M1 Review 风险项，确保 `tests/test_performance_p95_baseline.py` 迁移/升级到策略查表路径，并在文档中记录目标/现状差距。
   - 支持可配置样本数、超时时间；默认 1k 局面，可在 CI 中降级为 200 局面。
 - 交付物
   - 新增性能测试与报告模板。
@@ -155,6 +173,7 @@
 - 实现要点
   - 更新解释模板与渲染逻辑，从 `meta.frequency` 生成自然语言描述；单臂输出确定语句，多臂按降序描述并限制臂数（如 Top‑3）。
   - 补充测试样例覆盖 0/1/多臂、非数字频率、缺失字段、UTF‑8 字符等边界情况。
+  - 与 Compare & Tune 数据联动：支持在解释测试中复用 `reports/compare_m2.md` 的差异样本，确保老师-学生对照指标与口语化频率同步演进。
 - 交付物
   - 模板与服务层更新；新增测试。
 - DoD
@@ -188,11 +207,27 @@
   - 扩展 metrics 客户端（可为 mockable 接口），默认写入日志；生产接入 Prometheus/OpenTelemetry 兼容格式。
   - 日志标准化字段：`node_key`, `policy_source`, `latency_ms`, `fallback_used`；异常路径附带堆栈摘要。
   - 追加 `fallback_hit_rate`、`lookup_fallback_rate` 与 `fallback_tolerance` 检查（超阈值时触发 WARNING），并在性能/评测报告中输出统计。
+  - 针对查表容差风险，引入 `lookup_ev_diff_pct` 等指标，基于策略表与规则/真实表对比统计偏差；超阈值时输出结构化告警并生成 `reports/audit_lookup.md`。
 - 交付物
   - metrics 模块增强、测试、文档。
 - DoD
-  - 测试通过；日志/指标字段齐备；CI 可在 mock 环境验证；fallback 命中率监控上线且超阈值有告警。
-#### 任务 J3：Fallback 行为安全网
+  - 测试通过；日志/指标字段齐备；CI 可在 mock 环境验证；fallback 命中率与查表偏差监控上线且超阈值有告警。
+
+#### 任务 J3：CI 依赖守护与可选跳过（pokerkit 等第三方）
+- 先写的测试
+  - `tests/test_ci_dependency_guard.py`
+    - `test_missing_pokerkit_marks_skip()`：模拟缺失 `pokerkit`，断言相关测试被打上 `xfail/skip` 且给出安装提示。
+    - `test_dependency_manifest_lists_extras()`：校验 `configs/ci_dependencies.yaml` 中列出的可选依赖与 `pyproject`/`requirements` 保持一致。
+    - `test_ci_guard_script_returns_nonzero_on_drift()`：当依赖缺失但未在守护配置中声明时，脚本返回非零并打印补救步骤。
+- 实现要点
+  - 新增 `tools.ci_dependency_guard`，在 CI pre-test 阶段扫描依赖并根据配置决定报错或标记跳过。
+  - 在 `pyproject.toml` 或 `requirements-dev.txt` 中整理 extras，并在文档《docs/dev_setup.md》更新安装步骤。
+  - 与 pytest 插件集成（例如自定义 marker），将缺失依赖的测试标记为 `skip` 而非硬失败，同时输出结构化日志。
+- 交付物
+  - 守护脚本、依赖配置、测试与文档更新。
+- DoD
+  - 测试通过；CI 在缺少 `pokerkit` 时可继续运行主流程并给出显式提示；依赖新增/删除需更新配置，否则守护脚本阻止合并。
+#### 任务 J4：Fallback 行为安全网
 - 先写的测试
   - `tests/test_fallback_safety_net.py`
     - `test_fallback_prefers_passive_actions_when_available()`：当存在 check/call/fold 时，确保不会返回 bet/raise。
@@ -207,49 +242,67 @@
 - DoD
   - 测试通过；默认情况下 fallback 仅返回被动动作；激进兜底路径带告警与钳制信息。
 ---
-## K. Compare & Tune（老师-学生对照与自动调参 — 研究闭环，可选）
+## K. Compare & Tune（老师-学生对照与自动调参 — 研究闭环）
+
+> 从 M1 后置到 M2，结合策略表导出、评测与解释增强统一交付。
+
 ### 任务 K1：代表性局面集与老师打标
 - 先写的测试
   - `tests/test_compare_tune_dataset.py`
     - `test_dataset_reproducible_with_seed()`：固定种子生成相同局面集。
+    - `test_dataset_covers_extreme_pot_types()`：确保样本包含 3-bet/4-bet、OOP delay 等极端节点，呼应任务 H5。
 - 实现要点
-  - `tools.gen_cases --streets preflop,flop,turn --N 2000 --out artifacts/cases_m1.jsonl`。
-  - 老师打标脚本 `tools.teacher_label --in artifacts/cases_m1.jsonl --out artifacts/labels_teacher.jsonl`（可用规则近似替代，后续接 LP/M2）。
-### 任务 K2：对照评测与热力图
+  - `tools.gen_cases --streets preflop,flop,turn --N 2000 --out artifacts/cases_m2.jsonl --include-extremes`。
+  - 老师打标脚本 `tools.teacher_label --in artifacts/cases_m2.jsonl --out artifacts/labels_teacher.jsonl`；当 LP 策略可用时，以策略表为老师基线并记录版本。
+  - 输出 `meta`，记录采样策略、策略版本、规则版本，便于回归。
+- 交付物
+  - 新样本与老师标签产物；测试覆盖。
+- DoD
+  - 测试通过；产物可复现；覆盖极端节点且与策略版本绑定。
+
+### 任务 K2：老师-学生对照评测与热力图
 - 先写的测试
   - `tests/test_compare_metrics.py`
     - `test_metric_shapes_and_basic_ranges()`：Top-1 一致率、尺寸一致率、KL、ΔEV 基本范围正确。
+    - `test_report_references_policy_version()`：报告包含策略/规则版本与采样 seed。
 - 实现要点
-  - `tools.compare --cases artifacts/cases_m1.jsonl --labels artifacts/labels_teacher.jsonl --report reports/compare_m1.md --heatmap reports/compare_heatmap.png --thresholds configs/compare_thresholds.yaml`。
-  - 验收线（可配置，默认）：Top‑1 ≥ 65%、尺寸一致率 ≥ 60%、ΔEV 中位数 ≥ 0；报告页首输出 PASS/FAIL 汇总。
+  - `tools.compare --cases artifacts/cases_m2.jsonl --labels artifacts/labels_teacher.jsonl --student artifacts/policies --report reports/compare_m2.md --heatmap reports/compare_heatmap.png --thresholds configs/compare_thresholds.yaml`。
+  - 验收线（可配置，默认）：Top‑1 ≥ 65%、尺寸一致率 ≥ 60%、ΔEV 中位数 ≥ 0；报告页首输出 PASS/FAIL 汇总，并与监控指标联动。
   - 新增测试 `tests/test_compare_thresholds.py`：阈值可读入、默认值正确、报告包含 PASS/FAIL。
-### 任务 K3：自动调参（可选）
-- 实现要点
-  - `tools.tune --space configs/tune_space.yaml --trials 100 --in rules/*.yaml --out rules.tuned.yaml`（Optuna/随机搜索任选）。
+- 交付物
+  - 对照评测脚本、报告、热力图。
 - DoD
-  - 报告产出；参数回写规则文件；上述流程可全自动复跑。
+  - 测试通过；报告与监控指标一致；支持 quick 模式。
+
+### 任务 K3：自动调参（可选但建议）
+- 实现要点
+  - `tools.tune --space configs/tune_space.yaml --trials 100 --in rules/*.yaml --out rules.tuned.yaml --teacher artifacts/policies`，以策略表或老师标签为目标。
+  - 记录 trial 结果并支持中断续跑；成功配置写回规则文件并生成 diff 报告。
+- DoD
+  - 调参脚本可运行并输出最优参数；报告列出收益/一致率提升；生成的规则文件通过现有测试。
 ---
 ## 产物与命令总览（M2）
 - LP 求解器封装：`tools/lp_solver.py`（HiGHS/linprog 双后端）。
 - 策略导出产物：`artifacts/policies/{preflop,postflop}.npz`、`reports/m2_smoke.md`。
-- 运行时查表模块：`packages/poker_core/suggest/policy_loader.py`、`packages/poker_core/suggest/service.py`（查表主路径）。
-- 审计/评测报告：`reports/compare_m1.md`、`reports/compare_heatmap.png`、`reports/perf_policy.json`、`reports/eval_m2.md`。
-- 配置与阈值：`configs/policy_manifest.yaml`、`configs/compare_thresholds.yaml`、`configs/tune_space.yaml`、`rules.tuned.yaml`。
-- 数据集与标签：`artifacts/cases_m1.jsonl`、`artifacts/labels_teacher.jsonl`。
+- 运行时查表模块：`packages/poker_core/suggest/policy_loader.py`、`packages/poker_core/suggest/service.py`（查表主路径）及极端规则覆盖补丁。
+- 审计/评测报告：`reports/compare_m2.md`、`reports/compare_heatmap.png`、`reports/perf_policy.json`、`reports/audit_lookup.md`、`reports/eval_m2.md`。
+- 配置与阈值：`configs/policy_manifest.yaml`、`configs/compare_thresholds.yaml`、`configs/tune_space.yaml`、`configs/ci_dependencies.yaml`、`rules.tuned.yaml`。
+- 数据集与标签：`artifacts/cases_m2.jsonl`、`artifacts/labels_teacher.jsonl`。
 可运行命令（实现后）：
 - `python -m tools.lp_solver --tree artifacts/tree_flat.json --backend auto --out artifacts/lp_solution.npz`
 - `python -m tools.export_policy --solution artifacts/lp_solution.npz --out artifacts/policies --debug-jsonl artifacts/policy_sample.jsonl`
 - `python -m tools.m2_smoke --out reports/m2_smoke.md --quick`
-- `python -m tools.gen_cases --streets preflop,flop,turn --N 2000 --out artifacts/cases_m1.jsonl`
-- `python -m tools.teacher_label --in artifacts/cases_m1.jsonl --out artifacts/labels_teacher.jsonl`
-- `python -m tools.compare --cases artifacts/cases_m1.jsonl --labels artifacts/labels_teacher.jsonl --report reports/compare_m1.md --heatmap reports/compare_heatmap.png`
+- `python -m tools.gen_cases --streets preflop,flop,turn --N 2000 --out artifacts/cases_m2.jsonl --include-extremes`
+- `python -m tools.teacher_label --in artifacts/cases_m2.jsonl --out artifacts/labels_teacher.jsonl`
+- `python -m tools.compare --cases artifacts/cases_m2.jsonl --labels artifacts/labels_teacher.jsonl --student artifacts/policies --report reports/compare_m2.md --heatmap reports/compare_heatmap.png`
 - `python -m tools.tune --space configs/tune_space.yaml --trials 100 --in rules --out rules.tuned.yaml`
 - `python -m tools.audit_policy_vs_rules --policy artifacts/policies --rules configs/rules --out reports/policy_rule_audit.md`
 - `python -m tools.eval_baselines --policy artifacts/policies --hands 200000 --out reports/eval_m2.md`
+- `python -m tools.ci_dependency_guard --manifest configs/ci_dependencies.yaml`
 ---
 ## 建议执行顺序
 1) G1 → G2 → G3（LP 求解与策略表产出流水线）。
-2) H1 → H2 → H3（运行时查表接入与审计工具）。
+2) H1 → H2 → H3 → H4 → H5（运行时查表接入、极端规则覆盖与审计工具）。
 3) I1 → I2 → I3（性能与胜率评测、教学解释增强）。
-4) J1 → J2（策略版本化与监控运维）。
-5) （可选研究）Compare & Tune：任务 K1 → K2 → K3（老师-学生对照与自动调参）。
+4) J1 → J2 → J3 → J4（策略版本化、监控与依赖守护、Fallback 安全网）。
+5) Compare & Tune：任务 K1 → K2 → K3（老师-学生对照与自动调参）。
