@@ -4,7 +4,8 @@ import os
 from functools import lru_cache
 from typing import Any
 
-from poker_core.cards import RANK_ORDER, parse_card
+from poker_core.cards import RANK_ORDER
+from poker_core.cards import parse_card
 
 from .config_loader import load_json_cached
 

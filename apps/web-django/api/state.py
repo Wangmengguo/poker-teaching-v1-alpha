@@ -4,7 +4,8 @@ Simple in-memory stores for demo purposes
 
 from __future__ import annotations
 
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict
+from dataclasses import is_dataclass
 from typing import Any
 
 # 进程内最小状态存储（教学期用；重启会清空）

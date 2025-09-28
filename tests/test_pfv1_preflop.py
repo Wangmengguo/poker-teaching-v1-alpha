@@ -555,8 +555,13 @@ def test_bb_limped_check(monkeypatch):
     _patch_acts(monkeypatch, acts)
     r = build_suggestion(gs, 1)
     assert r["suggested"]["action"] == "check"
-    # No meta for vs-raise here
-    assert not r.get("meta")
+    # Verify new meta information is present (from B4/B5 features)
+    meta = r.get("meta", {})
+    assert meta is not None
+    assert meta.get("baseline") == "GTO"
+    assert meta.get("mode") == "GTO"
+    assert "node_key" in meta
+    assert "preflop|limped" in meta["node_key"]
 
 
 def test_vs_table_missing_buckets_fallback(monkeypatch):

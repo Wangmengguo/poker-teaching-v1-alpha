@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
 
 
@@ -136,6 +137,24 @@ class SCodes:
     FL_RAISE_SEMI_BLUFF = CodeDef("FL_RAISE_SEMI_BLUFF", "info", "强听半诈唬加注。")
     FL_RAISE_VALUE = CodeDef("FL_RAISE_VALUE", "info", "价值加注（对手下注较小）。")
     FL_CHECK_RANGE = CodeDef("FL_CHECK_RANGE", "info", "不在下注范围，选择过牌。")
+
+    # --- Explanations (mixing & river teaching hints) ---
+    MIX_FREQUENCY_HINT = CodeDef("MIX_FREQUENCY_HINT", "info", "混合策略抽样（~{frequency_pct}）。")
+    RIVER_VALUE_TIER_SUMMARY = CodeDef(
+        "RIVER_VALUE_TIER_SUMMARY",
+        "info",
+        "河牌判断：{river_value_tier_label}；{river_plan_text}。",
+    )
+    RIVER_BLOCKER_ADJUST = CodeDef(
+        "RIVER_BLOCKER_ADJUST",
+        "info",
+        "持有{river_blocker_label}，策略偏向{river_blocker_action}。",
+    )
+    RIVER_FACING_DECISION = CodeDef(
+        "RIVER_FACING_DECISION",
+        "info",
+        "面对{facing_size_text}下注，{river_value_tier_label}选择{river_facing_decision}。",
+    )
 
 
 __all__ = [

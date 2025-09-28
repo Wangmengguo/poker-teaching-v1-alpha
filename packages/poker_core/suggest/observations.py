@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
+from collections.abc import Iterable
 
 from poker_core.analysis import annotate_player_hand_from_gs
 from poker_core.domain.actions import LegalAction
@@ -11,25 +12,19 @@ from poker_core.suggest.context import SuggestContext
 from poker_core.suggest.hand_strength import derive_hand_strength
 from poker_core.suggest.preflop_tables import combo_from_hole
 from poker_core.suggest.types import Observation
-from poker_core.suggest.utils import (
-    calc_spr,
-    classify_flop,
-    derive_facing_size_tag,
-    infer_last_aggressor_before,
-    infer_pfr,
-    infer_pot_type,
-)
+from poker_core.suggest.utils import calc_spr
+from poker_core.suggest.utils import classify_flop
+from poker_core.suggest.utils import derive_facing_size_tag
+from poker_core.suggest.utils import infer_last_aggressor_before
+from poker_core.suggest.utils import infer_pfr
+from poker_core.suggest.utils import infer_pot_type
 from poker_core.suggest.utils import is_first_to_act as _is_first_to_act
 from poker_core.suggest.utils import is_ip as _is_ip
 from poker_core.suggest.utils import is_last_to_act as _is_last_to_act
-from poker_core.suggest.utils import (
-    nut_advantage,
-    range_advantage,
-)
+from poker_core.suggest.utils import nut_advantage
+from poker_core.suggest.utils import range_advantage
 from poker_core.suggest.utils import spr_bucket as _spr_bucket
-from poker_core.suggest.utils import (
-    to_call_from_acts,
-)
+from poker_core.suggest.utils import to_call_from_acts
 
 from .utils import infer_flop_hand_class_from_gs
 
@@ -199,7 +194,12 @@ def _build_observation_common(
         role = "na"
 
     try:
-        combo = combo_from_hole(getattr(hero, "hole", []) if hero is not None else [])
+        hero_hole_cards = tuple(getattr(hero, "hole", []) or []) if hero is not None else ()
+    except Exception:
+        hero_hole_cards = ()
+
+    try:
+        combo = combo_from_hole(list(hero_hole_cards))
     except Exception:
         combo = None
 
@@ -260,6 +260,8 @@ def _build_observation_common(
         pot_type=pot_type,
         last_aggressor=last_aggr,
         context=context,
+        hole=hero_hole_cards,
+        board=tuple(board),
     )
 
     return obs, pre_rationale

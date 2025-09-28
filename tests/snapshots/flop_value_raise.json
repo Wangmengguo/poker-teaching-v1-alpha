@@ -3,10 +3,12 @@
     "FL_MDF_DEFEND"
   ],
   "meta": {
-    "rule_path": "single_raised/role:pfr/ip/dry/mid"
+    "rule_path": "single_raised/role:pfr/ip/dry/mid",
+    "size_tag": "na"
   },
   "policy": "flop_v1",
   "suggested": {
-    "action": "call"
+    "action": "call",
+    "amount": 100
   }
 }

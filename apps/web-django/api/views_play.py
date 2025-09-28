@@ -10,7 +10,8 @@ from datetime import UTC
 
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import inline_serializer
 from poker_core.analysis import annotate_player_hand
 from poker_core.session_flow import next_hand
 from poker_core.session_types import SessionView
@@ -22,13 +23,17 @@ from poker_core.state_hu import settle_if_needed as _settle_if_needed
 from poker_core.state_hu import start_hand as _start_hand
 from poker_core.state_hu import start_hand_with_carry as _start_hand_with_carry
 from poker_core.suggest.service import build_suggestion
-from rest_framework import serializers, status
+from rest_framework import serializers
+from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from . import metrics
-from .models import Replay, Session
-from .state import HANDS, METRICS, snapshot_state
+from .models import Replay
+from .models import Session
+from .state import HANDS
+from .state import METRICS
+from .state import snapshot_state
 
 # --- Session end helpers (MVP) ---
 
@@ -131,7 +136,8 @@ def _persist_replay(hand_id: str, gs) -> None:
         # 统一的replay数据结构
         from datetime import datetime
 
-        from poker_core.version import ENGINE_COMMIT, SCHEMA_VERSION
+        from poker_core.version import ENGINE_COMMIT
+        from poker_core.version import SCHEMA_VERSION
 
         outcome = _extract_outcome_from_events(gs)
 

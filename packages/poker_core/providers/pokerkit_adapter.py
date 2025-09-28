@@ -7,7 +7,10 @@ PokerKit 适配器
 import functools
 from collections.abc import Sequence
 
-from .interfaces import EvalResult, EvaluationError, HandEvaluator, Strength
+from .interfaces import EvalResult
+from .interfaces import EvaluationError
+from .interfaces import HandEvaluator
+from .interfaces import Strength
 
 
 def _canon_card(c: str) -> str:

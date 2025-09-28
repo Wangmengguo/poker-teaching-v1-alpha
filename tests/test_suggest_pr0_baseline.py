@@ -3,8 +3,10 @@ import json
 import pytest
 from poker_core.domain.actions import LegalAction
 from poker_core.suggest.config_loader import load_json_cached
-from poker_core.suggest.service import _build_observation, build_suggestion
-from poker_core.suggest.utils import active_player_count, stable_roll
+from poker_core.suggest.service import _build_observation
+from poker_core.suggest.service import build_suggestion
+from poker_core.suggest.utils import active_player_count
+from poker_core.suggest.utils import stable_roll
 
 
 def test_utils_stable_roll_is_stable():

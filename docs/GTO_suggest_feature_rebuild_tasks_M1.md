@@ -140,7 +140,7 @@
 - DoD
   - 测试通过；解释渲染含频率文本（当提供时）。
 
-### 任务 B2：确定性混合策略（默认关闭）
+### ✅ 任务 B2：确定性混合策略（默认关闭）
 - 先写的测试
   - `tests/test_mixing_determinism.py`
     - `test_stable_weighted_choice_deterministic()`：同 `seed_key/weights` 返回同一索引。
@@ -158,7 +158,7 @@
 - DoD
   - 测试通过；默认关闭不影响 baseline。
 
-### 任务 B3：保守回退（缺失节点/信息缺口）
+### ✅ 任务 B3：保守回退（缺失节点/信息缺口）
 - 先写的测试
   - `tests/test_fallback_minimal.py`
     - `test_missing_rule_triggers_fallback_and_code()`：缺规则时产出合法动作且 rationale 含 `CFG_FALLBACK_USED`。
@@ -172,7 +172,7 @@
 - DoD
   - 测试通过；无非法动作。
 
-### 任务 B4：节点键 node_key_from_observation（统一离线/运行时）
+### ✅ 任务 B4：节点键 node_key_from_observation（统一离线/运行时）
 - 先写的测试
   - `tests/test_node_key.py`
     - `test_node_key_components()`：包含 `pot_type/role/(ip|oop)/texture/spr/hand_class` 六要素。
@@ -191,7 +191,7 @@
 - DoD
   - 测试通过；响应包含 `meta.node_key`。
 
-### 任务 B5：输出契约增强（不改 UI 契约）
+### ✅ 任务 B5：输出契约增强（不改 UI 契约）
 - 先写的测试
   - `tests/test_service_meta_contract_m1.py`
     - `test_meta_fields_present()`：`meta.baseline="GTO" / meta.mode="GTO" / meta.node_key` 存在。
@@ -204,7 +204,7 @@
 - DoD
   - 测试通过；兼容既有测试。
 
-### 任务 B6：River 最小规则组与解释口径（规则/启发式）
+### ✅ 任务 B6：River 最小规则组与解释口径（规则/启发式）
 - 先写的测试
   - `tests/test_river_rules_minimal.py`
     - `test_value_threshold_and_blocker_logic()`：强成手（两对+/强顶对）在未受阻时可小注或过牌诱导；有关键阻断牌时更多过牌/跟注。
@@ -221,7 +221,7 @@
 
 ## C. Explanations & Codes（教学解释）
 
-### 任务 C1：中文模板扩展（频率/混合/回退）
+### ✅ 任务 C1：中文模板扩展（频率/混合/回退）
 - 先写的测试
   - `tests/test_explanations_frequency_phrase.py`
     - `test_frequency_phrase_rendered()`：当 `meta.frequency=0.75` 渲染 “混合策略抽样（~75%）”。
@@ -237,7 +237,7 @@
 
 ## D. Telemetry & Logging（观测）
 
-### 任务 D1：结构化日志字段补全（与 Plan 指标清单对齐）
+### ✅ 任务 D1：结构化日志字段补全（与 Plan 指标清单对齐）
 - 先写的测试
   - `tests/test_telemetry_logging_fields.py`
     - `test_log_contains_policy_and_rule_path()`：`caplog` 断言日志含 `policy_name, street, action, size_tag, rule_path`。
@@ -255,7 +255,7 @@
 
 ## E. Feature Flags（灰度与默认）
 
-### 任务 E1：特性开关与默认值（统一文档口径：默认 off）
+### ✅ 任务 E1：特性开关与默认值（统一文档口径：默认 off）
 - 先写的测试
   - 复用 `tests/test_mixing_determinism.py::test_mixing_off_chooses_max_weight()` 覆盖默认关闭。
 - 实现要点
@@ -271,7 +271,7 @@
 
 ## F. 性能基线（轻量门禁）
 
-### 任务 F1：P95 轻量验收（慢测）
+### ✅ 任务 F1：P95 轻量验收（慢测）
 - 先写的测试
   - `tests/test_performance_p95_baseline.py`（标记 `@pytest.mark.slow`）
     - 固定种子生成 100 随机局面，端到端 `build_suggestion` 的 P95 ≤ 1s（或折算 500ms × 100 样本）。

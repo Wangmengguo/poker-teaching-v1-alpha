@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
+from dataclasses import replace
 from typing import Literal
 
 from poker_core.cards import make_deck

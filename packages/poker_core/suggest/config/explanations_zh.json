@@ -17,6 +17,12 @@
 
   "PL_PROBE_BET": "{street} 无人下注线：以最小尺寸试探性下注。",
 
+  "MIX_FREQUENCY_HINT": "混合策略抽样（~{frequency_pct}）。",
+
+  "RIVER_VALUE_TIER_SUMMARY": "{river_value_tier_label}：{river_plan_text}。",
+  "RIVER_BLOCKER_ADJUST": "持有{river_blocker_label} → {river_blocker_action}。",
+  "RIVER_FACING_DECISION": "面对{facing_size_text}下注，{river_value_tier_label}选择{river_facing_decision}。",
+
   "FL_MIN_REOPEN_ADJUSTED": "已提升到最小合法再加注金额。",
   "W_CLAMPED": "建议金额 {given} 超出合法区间 [{min},{max}]，已调整为 {chosen}。",
   "CFG_FALLBACK_USED": "配置不可用/未命中：使用保守回退。",

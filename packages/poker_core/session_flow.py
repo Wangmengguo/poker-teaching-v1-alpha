@@ -1,7 +1,8 @@
 # packages/poker_core/session_flow.py
 from __future__ import annotations
 
-from poker_core.session_types import NextHandPlan, SessionView
+from poker_core.session_types import NextHandPlan
+from poker_core.session_types import SessionView
 
 
 def next_hand(session: SessionView, last_gs, seed: int | None = None) -> NextHandPlan:

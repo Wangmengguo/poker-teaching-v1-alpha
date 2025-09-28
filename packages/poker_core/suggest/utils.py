@@ -1,13 +1,16 @@
 # poker_core/suggest/utils.py
 from __future__ import annotations
 
+from collections.abc import Sequence
 from hashlib import sha1
 from math import isfinite
 from typing import Any
 
-from poker_core.cards import RANK_ORDER, parse_card
+from poker_core.cards import RANK_ORDER
+from poker_core.cards import parse_card
 from poker_core.domain.actions import LegalAction
 
+from .classifiers import classify_board_texture
 from .preflop_tables import get_modes
 
 
@@ -64,57 +67,28 @@ def spr_bucket(spr: float) -> str:
 
 
 def classify_flop(board: list[str]) -> dict[str, Any]:
-    """简化的翻面纹理分类。
-    返回：{texture:'dry|semi|wet|na', paired:bool, fd:bool, sd:bool}
-    规则（近似且稳定）：
-      - <3 张公共牌 → na
-      - 若有对子或三张同花或三连顺/双连顺 → wet
-      - 两张同花或两张相连（含 1-gap） → semi
-      - 否则 dry
-    """
+    """Return flop texture along with flush/straight hints."""
+
     if not board or len(board) < 3:
         return {"texture": "na", "paired": False, "fd": False, "sd": False}
 
-    # ranks / suits 提取
     ranks = [c[:-1] for c in board[:3]]
     suits = [c[-1] for c in board[:3]]
-    # paired
     paired = len(set(ranks)) < 3
-    # 同花倾向
-    s_counts: dict[str, int] = {}
-    for s in suits:
-        s_counts[s] = s_counts.get(s, 0) + 1
-    three_suited = any(v == 3 for v in s_counts.values())
-    two_suited = any(v == 2 for v in s_counts.values())
-    fd = three_suited or two_suited  # 简化：两同花即认为有同花倾向
 
-    # 顺听倾向（粗略，以排序后相邻差值衡量）
-    RANK_ORDER = {
-        "2": 2,
-        "3": 3,
-        "4": 4,
-        "5": 5,
-        "6": 6,
-        "7": 7,
-        "8": 8,
-        "9": 9,
-        "T": 10,
-        "J": 11,
-        "Q": 12,
-        "K": 13,
-        "A": 14,
-    }
+    suit_counts: dict[str, int] = {}
+    for s in suits:
+        suit_counts[s] = suit_counts.get(s, 0) + 1
+    three_suited = any(v == 3 for v in suit_counts.values())
+    two_suited = any(v == 2 for v in suit_counts.values())
+    fd = three_suited or two_suited
+
     vals = sorted(RANK_ORDER.get(r, 0) for r in ranks)
     gaps = [vals[1] - vals[0], vals[2] - vals[1]]
     connected = (gaps[0] <= 1 and gaps[1] <= 1) or (gaps[0] == 2 or gaps[1] == 2)
     sd = connected
 
-    if paired or three_suited or (connected and two_suited):
-        texture = "wet"
-    elif two_suited or connected:
-        texture = "semi"
-    else:
-        texture = "dry"
+    texture = classify_board_texture(board[:3])
 
     return {"texture": texture, "paired": paired, "fd": fd, "sd": sd}
 
@@ -612,3 +586,45 @@ def stable_roll(hand_id: str, pct: int) -> bool:
 def drop_nones(d: dict[str, Any]) -> dict[str, Any]:
     """剔除值为 None 的键（浅层）。"""
     return {k: v for k, v in (d or {}).items() if v is not None}
+
+
+def stable_weighted_choice(seed_key: str, weights: Sequence[float | int]) -> int:
+    """Deterministic weighted sampler based on SHA1(seed_key).
+
+    - Negative/NaN weights are treated as zero.
+    - When all weights are non-positive, returns index 0.
+    - Uses the first 8 bytes of SHA1 as unsigned integer to derive a
+      number in [0, 1), then maps to the cumulative distribution.
+    """
+
+    sanitized: list[float] = []
+    total = 0.0
+    for w in list(weights or []):
+        try:
+            val = float(w)
+        except Exception:
+            val = 0.0
+        if not isfinite(val) or val <= 0:
+            val = 0.0
+        sanitized.append(val)
+        total += val
+
+    if not sanitized:
+        return 0
+
+    if total <= 0:
+        return 0
+
+    digest = sha1((seed_key or "").encode("utf-8")).digest()
+    bucket = int.from_bytes(digest[:8], "big", signed=False)
+    max_val = float(1 << 64)
+    rnd = (bucket % (1 << 64)) / max_val
+    target = rnd * total
+
+    cumulative = 0.0
+    for idx, weight in enumerate(sanitized):
+        cumulative += weight
+        if target < cumulative:
+            return idx
+
+    return len(sanitized) - 1

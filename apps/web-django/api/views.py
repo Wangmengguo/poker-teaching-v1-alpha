@@ -5,14 +5,17 @@ import os
 import sys
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC
+from datetime import datetime
 
-from django.http import HttpResponseNotFound, JsonResponse
+from django.http import HttpResponseNotFound
+from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import Replay
-from .state import METRICS, REPLAYS
+from .state import METRICS
+from .state import REPLAYS
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 PKG_DIR = os.path.abspath(os.path.join(BASE_DIR, "packages"))
@@ -21,7 +24,8 @@ if PKG_DIR not in sys.path:
 
 from poker_core.analysis import annotate_player_hand  # noqa: E402
 from poker_core.deal import deal_hand as core_deal  # noqa: E402
-from poker_core.version import ENGINE_COMMIT, SCHEMA_VERSION  # noqa: E402
+from poker_core.version import ENGINE_COMMIT  # noqa: E402
+from poker_core.version import SCHEMA_VERSION  # noqa: E402
 
 
 def demo_page(request):

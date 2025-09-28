@@ -7,11 +7,14 @@ from dataclasses import dataclass
 
 from poker_core.domain.actions import LegalAction
 
-from .calculators import size_from_bb, size_from_tag
-from .codes import CodeDef, SCodes
+from .calculators import size_from_bb
+from .calculators import size_from_tag
+from .codes import CodeDef
+from .codes import SCodes
 from .codes import mk_rationale as R
 from .context import SuggestContext
-from .types import Observation, PolicyConfig
+from .types import Observation
+from .types import PolicyConfig
 from .utils import raise_to_amount
 
 

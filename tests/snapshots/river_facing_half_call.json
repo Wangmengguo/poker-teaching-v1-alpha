@@ -2,9 +2,13 @@
   "codes": [
     "FL_MDF_DEFEND"
   ],
-  "meta": {},
+  "meta": {
+    "rule_path": "single_raised/role/caller/oop/dry/ge6/facing:half",
+    "size_tag": "na"
+  },
   "policy": "river_v1",
   "suggested": {
-    "action": "call"
+    "action": "call",
+    "amount": 100
   }
 }
