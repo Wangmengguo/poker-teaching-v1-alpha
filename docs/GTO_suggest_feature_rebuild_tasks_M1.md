@@ -285,33 +285,6 @@
 
 ---
 
-## G. Compare & Tune（老师-学生对照与自动调参 — 研究闭环，可选）
-
-### 任务 G1：代表性局面集与老师打标
-- 先写的测试
-  - `tests/test_compare_tune_dataset.py`
-    - `test_dataset_reproducible_with_seed()`：固定种子生成相同局面集。
-- 实现要点
-  - `tools.gen_cases --streets preflop,flop,turn --N 2000 --out artifacts/cases_m1.jsonl`。
-  - 老师打标脚本 `tools.teacher_label --in artifacts/cases_m1.jsonl --out artifacts/labels_teacher.jsonl`（可用规则近似替代，后续接 LP/M2）。
-
-### 任务 G2：对照评测与热力图
-- 先写的测试
-  - `tests/test_compare_metrics.py`
-    - `test_metric_shapes_and_basic_ranges()`：Top-1 一致率、尺寸一致率、KL、ΔEV 基本范围正确。
-- 实现要点
-  - `tools.compare --cases artifacts/cases_m1.jsonl --labels artifacts/labels_teacher.jsonl --report reports/compare_m1.md --heatmap reports/compare_heatmap.png --thresholds configs/compare_thresholds.yaml`。
-  - 验收线（可配置，默认）：Top‑1 ≥ 65%、尺寸一致率 ≥ 60%、ΔEV 中位数 ≥ 0；报告页首输出 PASS/FAIL 汇总。
-  - 新增测试 `tests/test_compare_thresholds.py`：阈值可读入、默认值正确、报告包含 PASS/FAIL。
-
-### 任务 G3：自动调参（可选）
-- 实现要点
-  - `tools.tune --space configs/tune_space.yaml --trials 100 --in rules/*.yaml --out rules.tuned.yaml`（Optuna/随机搜索任选）。
-- DoD
-  - 报告产出；参数回写规则文件；上述流程可全自动复跑。
-
----
-
 ## 产物与命令总览（M1）
 - Buckets：`configs/buckets/{preflop,flop,turn}.json`
 - Transitions：`artifacts/transitions/{flop_to_turn,turn_to_river}.json`
@@ -321,7 +294,6 @@
 - Lookup：`artifacts/lookup/{hs_*,pot_*}.npz`
 - River Rules：`rules/river.yaml`
 - Outs Weights：`packages/poker_core/suggest/outs_weights.yaml`
- - Compare Thresholds：`configs/compare_thresholds.yaml`
 
 可运行命令（实现后）：
 - `python -m tools.build_buckets --streets preflop,flop,turn --bins 6,8,8 --features strength,potential --out configs/buckets`
@@ -338,6 +310,7 @@
 ## 建议执行顺序
 1) A1 → A2 → A3 → A4 → A5 → A6（离线产物 + 冒烟 + 查表）
 2) B1 → B3 → B2 → B4 → B5（运行时策略/回退/混合/节点键/契约）
+3) Compare & Tune、老师-学生对照与自动调参相关内容整体后置至 M2，随策略表接入与评测统一交付。
 3) B6 → C1 → D1 → E1 → F1（河牌规则/解释/日志/开关/性能）
 4) （可选）G1 → G2 → G3（研究闭环）
 

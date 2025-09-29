@@ -333,4 +333,4 @@ else:
 
 ---
 Document owner: Engineering (Suggest)
-Version: v1.1（对齐 docs/GTO‑suggest‑feature‑specify‑rebuild.md 与 docs/suggest_v_0_execution_plan_with_technical_boundaries_how_to.md）
+Version: v1.2（M2 任务拆分补充版）
