@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from tools import lp_solver
+from tools import solve_lp as lp_solver
 
 
 @pytest.fixture

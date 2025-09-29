@@ -28,6 +28,9 @@ from .policy import policy_preflop_v0
 from .policy import policy_preflop_v1
 from .policy import policy_river_v1
 from .policy import policy_turn_v1
+from .policy_loader import PolicyEntry
+from .policy_loader import PolicyLoaderError
+from .policy_loader import get_runtime_loader
 from .types import Observation
 from .types import PolicyConfig
 from .utils import drop_nones
@@ -196,6 +199,64 @@ def _frequency_pct_text(value: float) -> str:
     if 0 < value and pct == 0:
         return "<1%"
     return f"{pct}%"
+
+
+_POLICY_WEIGHT_EPS = 1e-6
+
+
+def _build_table_policy(entry: PolicyEntry, acts: list[LegalAction]):
+    if sum(entry.raw_weights) <= _POLICY_WEIGHT_EPS:
+        return None
+    legal_actions = {a.action for a in acts}
+    ranked: list[tuple[int, str, float]] = []
+    for idx, (action, weight) in enumerate(zip(entry.actions, entry.weights, strict=False)):
+        if action in legal_actions:
+            ranked.append((idx, action, float(weight)))
+    if not ranked:
+        return None
+    ranked.sort(key=lambda item: item[2], reverse=True)
+    top_idx, chosen_action, top_weight = ranked[0]
+    if top_weight <= _POLICY_WEIGHT_EPS:
+        return None
+
+    size_tag: str | None = None
+    if top_idx < len(entry.size_tags):
+        size_tag = entry.size_tags[top_idx]
+    if not size_tag:
+        meta_fallback = entry.meta or {}
+        if isinstance(meta_fallback, dict):
+            fallback_tag = meta_fallback.get("size_tag")
+            if fallback_tag is not None:
+                text = str(fallback_tag).strip()
+                if text:
+                    size_tag = text
+
+    suggested: dict[str, Any] = {"action": chosen_action}
+    if size_tag:
+        suggested["size_tag"] = size_tag
+
+    table_meta = dict(entry.table_meta)
+    version = str(table_meta.get("version") or table_meta.get("policy_version") or "runtime")
+    meta = dict(entry.meta or {})
+    meta.update(
+        {
+            "policy_source": "policy",
+            "policy_version": version,
+            "policy_hash": table_meta.get("policy_hash"),
+            "policy_weight": float(top_weight),
+            "policy_distribution": entry.distribution(),
+            "node_key": entry.node_key,
+            "policy_table_meta": table_meta,
+            "policy_fallback": False,
+        }
+    )
+    if size_tag:
+        meta.setdefault("size_tag", size_tag)
+
+    policy_name = str(table_meta.get("policy_name") or f"{version}_table")
+    meta.setdefault("policy_name", policy_name)
+    rationale: list[dict[str, Any]] = []
+    return suggested, rationale, policy_name, meta
 
 
 def _frequency_context(freq: Any) -> dict[str, Any] | None:
@@ -400,6 +461,66 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
         policy_preflop_v0 if obs.street == "preflop" else policy_postflop_v0_3
     )
 
+    table_override: tuple[dict[str, Any], list[dict[str, Any]], str, dict[str, Any]] | None = None
+    runtime_meta_hint: dict[str, Any] = {}
+    debug_policy_fallback: bool | None = None
+    loader = get_runtime_loader()
+    node_key_runtime: str | None = None
+    if loader is not None:
+        try:
+            node_key_runtime = node_key_from_observation(obs)
+        except Exception:
+            node_key_runtime = None
+        if node_key_runtime:
+            try:
+                entry = loader.lookup(node_key_runtime)
+            except PolicyLoaderError:
+                logging.getLogger(__name__).exception(
+                    "policy_table_lookup_failed", extra={"node_key": node_key_runtime}
+                )
+                runtime_meta_hint = {
+                    "policy_source": "rule",
+                    "policy_fallback": True,
+                    "node_key": node_key_runtime,
+                }
+                debug_policy_fallback = True
+            else:
+                if entry is None:
+                    runtime_meta_hint = {
+                        "policy_source": "rule",
+                        "policy_fallback": True,
+                        "node_key": node_key_runtime,
+                    }
+                    debug_policy_fallback = True
+                else:
+                    try:
+                        table_override = _build_table_policy(entry, acts)
+                    except Exception:
+                        logging.getLogger(__name__).exception(
+                            "policy_table_build_failed", extra={"node_key": entry.node_key}
+                        )
+                        runtime_meta_hint = {
+                            "policy_source": "rule",
+                            "policy_fallback": True,
+                            "node_key": entry.node_key,
+                            "policy_version": entry.table_meta.get("version"),
+                            "policy_hash": entry.table_meta.get("policy_hash"),
+                        }
+                        debug_policy_fallback = True
+                    else:
+                        if table_override is None:
+                            runtime_meta_hint = {
+                                "policy_source": "rule",
+                                "policy_fallback": True,
+                                "node_key": entry.node_key,
+                                "policy_version": entry.table_meta.get("version"),
+                                "policy_hash": entry.table_meta.get("policy_hash"),
+                                "policy_distribution": entry.distribution(),
+                            }
+                            debug_policy_fallback = True
+                        else:
+                            debug_policy_fallback = False
+
     # 执行策略
     cfg = cfg or PolicyConfig()
     suggested: dict[str, Any] = {}
@@ -422,33 +543,36 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
             fallback_meta.setdefault("fallback_reason", reason)
         meta_from_policy = dict(fallback_meta)
 
-    try:
-        out = policy_fn(obs, cfg)
-    except Exception:
-        logging.getLogger(__name__).exception(
-            "policy %s failed; using conservative fallback",
-            getattr(policy_fn, "__name__", "unknown"),
-        )
-        _engage_fallback("policy_exception")
-        out = None
+    if table_override is not None:
+        suggested, rationale, policy_name, meta_from_policy = table_override
     else:
-        if isinstance(out, Decision):
-            decision_obj = out
-            rationale = []
-            policy_name = "unknown"
-        elif isinstance(out, tuple):
-            if out and isinstance(out[0], Decision):
-                decision_obj = out[0]
-                rationale = list(out[1]) if len(out) > 1 else []  # type: ignore
-                policy_name = str(out[2]) if len(out) > 2 else "unknown"
-                meta_from_policy = dict(out[3]) if len(out) > 3 else {}
-            elif len(out) == 4:
-                suggested, rationale, policy_name, meta_from_policy = out  # type: ignore
-            else:
-                suggested, rationale, policy_name = out  # type: ignore
-                meta_from_policy = {}
+        try:
+            out = policy_fn(obs, cfg)
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "policy %s failed; using conservative fallback",
+                getattr(policy_fn, "__name__", "unknown"),
+            )
+            _engage_fallback("policy_exception")
+            out = None
         else:
-            raise ValueError("Policy returned unsupported response type")
+            if isinstance(out, Decision):
+                decision_obj = out
+                rationale = []
+                policy_name = "unknown"
+            elif isinstance(out, tuple):
+                if out and isinstance(out[0], Decision):
+                    decision_obj = out[0]
+                    rationale = list(out[1]) if len(out) > 1 else []  # type: ignore
+                    policy_name = str(out[2]) if len(out) > 2 else "unknown"
+                    meta_from_policy = dict(out[3]) if len(out) > 3 else {}
+                elif len(out) == 4:
+                    suggested, rationale, policy_name, meta_from_policy = out  # type: ignore
+                else:
+                    suggested, rationale, policy_name = out  # type: ignore
+                    meta_from_policy = {}
+            else:
+                raise ValueError("Policy returned unsupported response type")
 
     if decision_obj is not None:
         suggested, decision_meta, decision_rationale = decision_obj.resolve(obs, acts, cfg)
@@ -534,6 +658,9 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
         _engage_fallback("illegal_action")
         if suggested.get("action") not in names:
             raise ValueError("Policy produced illegal action")
+
+    if runtime_meta_hint:
+        meta_from_policy = {**(meta_from_policy or {}), **runtime_meta_hint}
 
     if fallback_meta:
         meta_from_policy = {**(meta_from_policy or {}), **fallback_meta}
@@ -750,6 +877,15 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
             )
     except Exception:
         pass
+
+    debug_meta_flag = debug_policy_fallback
+    if meta_clean:
+        if "policy_fallback" in meta_clean:
+            debug_meta_flag = bool(meta_clean.get("policy_fallback"))
+    if debug_meta_flag is not None:
+        dbg = resp.setdefault("debug", {})
+        dbg_meta = dbg.setdefault("meta", {})
+        dbg_meta["policy_fallback"] = bool(debug_meta_flag)
 
     # Optional: render natural-language explanations for teaching UI
     try:

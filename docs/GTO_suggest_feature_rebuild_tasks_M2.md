@@ -72,7 +72,7 @@
 
 ### H. 运行时策略查表接入（优先查表、失败回退）
 
-#### 任务 H1：策略 NPZ 读取与缓存层
+#### ✅ 任务 H1：策略 NPZ 读取与缓存层
 - 先写的测试
   - `tests/test_policy_loader.py`
     - `test_loader_reads_npz_and_normalizes_weights()`：加载策略文件后，断言每个节点权重归一化、包含动作与 `size_tag`。
@@ -92,7 +92,7 @@
 - DoD
   - 测试通过；缓存命中正常；热更新生效；错误日志友好。
 
-#### 任务 H2：service 查表主路径（含回退）
+#### ✅ 任务 H2：service 查表主路径（含回退）
 - 先写的测试
   - `tests/test_service_policy_path.py`
     - `test_policy_hit_returns_table_action()`：策略表存在节点时，`service.suggest` 返回查表动作与频率。
@@ -112,7 +112,7 @@
 - DoD
   - 测试通过；查表路径输出合法；日志含命中率统计。
 
-#### 任务 H3：策略/规则一致性审计工具
+#### ✅ 任务 H3：策略/规则一致性审计工具
  - 先写的测试
    - `tests/test_policy_rule_audit.py`
      - `test_policy_vs_rule_diff_report()`：对固定节点集合运行审计，生成报告列出策略与规则差异（动作、尺寸、频率），断言文件存在。
@@ -130,6 +130,18 @@
   - 报告文件注意覆盖策略与 CSV/Markdown 同步更新。
 - DoD
   - 测试通过；报告覆盖差异；阈值可配置；CI 可运行 quick 版本。
+
+> **H 阶段进度小结（H1–H3）**
+>
+> - 运行时策略缓存层现已具备懒加载、热更新与指标钩子，`node_key` 与 `spr` 标签口径对齐，零权重节点会自动回退至规则路径。
+> - `service` 主链路优先查表，失败场景写入 `policy_fallback` 标记并维持原有 fallback 幂等逻辑，`debug.meta.policy_fallback` 统一输出。
+> - 新增的审计 CLI 支持差异阈值、TopN 摘要及缺失节点提示，为后续接入真实策略表格提供基线自检能力。
+>
+> **接入实战表格注意事项**
+>
+> 1. 离线导出的策略表需确保 `node_key` 与运行时 `spr`/`bucket` 口径一致（当前采用 `spr=spr4` 等离散标签）。
+> 2. 策略文件应保留原始权重总和，零和节点将触发查表回退，避免默认落到首个动作。
+> 3. 审计工具默认阈值 0.6，建议根据真实分布调参，并在导入新策略时同步产出 Markdown 差异报告。
 
 #### 任务 H4：node_key 与桶映射一致性补齐
 - 先写的测试

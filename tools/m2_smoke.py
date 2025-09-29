@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from tools import export_policy
-from tools import lp_solver
+from tools import solve_lp as lp_solver
 
 __all__ = ["run_smoke", "main"]
 
