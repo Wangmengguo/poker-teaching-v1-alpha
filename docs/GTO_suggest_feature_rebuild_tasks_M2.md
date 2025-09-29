@@ -8,6 +8,19 @@
 
 ### G. LP 求解 & 策略表产出（离线）
 
+【G 阶段现状核查与差距（查漏补缺）】
+- 已完成并有测试覆盖
+  - G1（双后端 LP）：`tools/solve_lp.py` 提供 HiGHS/linprog 双后端与 CLI，`tests/test_lp_solver_backend.py` 覆盖最优值、对偶价格、一致性与异常路径；兼容包装 `tools/lp_solver.py` 仅作导出（无 CLI）。
+  - G2（策略导出）：`tools/export_policy.py` 已输出 `artifacts/policies/{preflop,postflop}.npz`，`tests/test_policy_export.py` 覆盖 NPZ 结构与 `node_key_components` 基本字段（street/pot_type/role/pos/texture/spr/bucket）。
+  - G3（离线烟囱）：`tools/m2_smoke.py` 串联最小产物并生成报告，`tests/test_tools_smoke_m2.py` 验证产物/报告与幂等参数（reuse/force）。
+- 与“完整策略表”的主要差距
+  - 缺少 facing 维度建表：离线产物尚未覆盖“面对下注”情形（facing=third|half|two_third_plus），仅含未下注节点（bet/check）。
+  - node_key 口径未含 facing：运行时 `packages/poker_core/suggest/node_key.py` 生成的键不含 facing，离线/运行时键不完全一致，查表难以命中防守节点。
+  - 元数据缺口：导出 NPZ 的 `meta.node_key_components` 未包含 facing 字段，后续审计与一致性校验不完整。
+  - 枚举范围不足：`tools/build_policy_solution.py` 仅生成 single_raised +（flop 可含 limped） 且未列举防守动作集（call/fold/raise），postflop `bucket` 以 hand_class 文本填充（`bucket=na`），缺少桶 id 跟运行时的对齐通道（见 H4）。
+  - 文档命令偏差：LP CLI 实际为 `python -m tools.solve_lp --out artifacts/lp_solution.json`，而非 `tools.lp_solver`/`.npz`。
+→ 目标：本阶段补齐 facing 维度（离线/运行时/导出一致）、明确动作集（防守含 call/fold/raise 至少一档 size）、修正命令，并增加覆盖审计，确保产出“可查表的完整策略表”。
+
 #### ✅ 任务 G1：LP 求解器模块化封装（HiGHS/linprog 双后端）
 - 先写的测试
   - `tests/test_lp_solver_backend.py`
@@ -67,6 +80,102 @@
   - 后端回退信息要在报告中显式记录，避免调试困境。
 - DoD
   - 测试通过；在干净目录下一键生成全部 M2 离线产物并产出报告；报告首行 `PASS`。
+
+#### 任务 G4：`build_policy_solution.py` 扩展 facing 维度（third/half/two_third_plus）
+- 先写的测试
+  - `tests/test_build_policy_solution_facing.py`
+    - `test_facing_dimensions_exported()`：调用 `build_policy_solution` 后，断言产物包含 `...|facing=third|...`、`...|facing=half|...`、`...|facing=two_third_plus|...` 的节点；且同时存在未下注节点 `facing=na`。
+    - `test_facing_weights_calculated_correctly()`：验证不同 facing 下注尺寸对应的权重计算逻辑（示例：third≈0.3, half≈0.5, two_third_plus≈0.7，可通过阈值断言 ±0.05）。
+    - `test_facing_defense_action_set()`：面对下注节点的动作集至少包含 `call`、`fold`、`raise`（可先以单一 `raise` 档，如 `raise_half` 或 `raise_small` 对齐服务 size_tag 定义）。
+    - `test_facing_fallback_to_default()`：当无法判定 facing（或未配置）时，回退到 `facing=na` 且 `meta.facing_fallback=true`。
+- 实现要点
+  - 扩展 `tools/build_policy_solution.py`：
+    - 枚举 postflop “未下注”节点：`facing=na`，动作集 `[{bet,size_tag,weight},{check,weight}]`（保留原逻辑）。
+    - 枚举 postflop “面对下注”节点：`facing ∈ {third,half,two_third_plus}`，动作集 `[{call,w_c},{fold,w_f},{raise,size_tag=w_r}]`，默认提供一档 `raise` size_tag（与 `packages/poker_core/suggest/utils.py` 的 size 语义一致）。
+    - `node_key` 增加段 `facing=...`；节点对象增加 `"facing": ...` 字段。
+    - 提供配置接口：`configs/policy_manifest.yaml` 或沿用 `configs/classifiers.yaml` 内新增 `facing_weights`，支持覆写默认 `w_c/w_f/w_r` 与 size_tag 映射；权重归一化由导出器兜底。
+  - 配套导出增强（小改动，见下）：`tools/export_policy.py` 的 `node_key_components` 新增 `facing`，并原样落盘到 NPZ `meta`。
+- 交付物
+  - 扩展的 `build_policy_solution.py`；`tests/test_build_policy_solution_facing.py`；`tools/export_policy.py` 增加 `facing` 组件导出。
+- 难度评估：系数 3/5（维度扩展相对直接，但需确保与现有逻辑兼容）。
+- 易错点排雷
+  - facing 维度需与现有 node_key 生成逻辑对齐，避免键冲突；未下注节点固定 `facing=na`。
+  - 权重计算需考虑数值稳定性，避免浮点精度问题。
+  - 回退逻辑需确保服务稳定性，避免 facing 缺失导致服务中断。
+- DoD
+  - 测试通过；产物包含 `facing ∈ {na,third,half,two_third_plus}`；防守动作集齐备；`meta.node_key_components.facing` 存在；回退路径稳定。
+
+#### 任务 G5：运行时 node_key facing 扩展与 fallback
+- 先写的测试
+  - `tests/test_node_key_facing.py`
+    - `test_node_key_includes_facing_when_available()`：构造带 facing 信息的 Observation，断言导出的 node_key 包含 `facing=third|half|two_third_plus`。
+    - `test_facing_fallback_to_default_size()`：当 facing 信息缺失时，回退到默认下注尺寸并在 `meta` 中标记 `facing_fallback=true`。
+    - `test_facing_consistency_across_runtime_offline()`：验证运行时 node_key 与离线策略表 facing 维度完全一致。
+- 实现要点
+  - 扩展 `packages/poker_core/suggest/node_key.py`：`node_key = ...|facing={obs.facing_size_tag or 'na'}|...`（保留 `texture/spr/hand` 段）。
+  - `packages/poker_core/suggest/service.py`：查表前组装 `meta.node_key`，当 `obs.facing_size_tag='na'` 且为“面对下注路径”时设置 `meta.facing_fallback=true` 并降级到规则或保守策略。
+  - 确保 NPZ 中 `node_key` 与 `node_key_components.facing` 一致（由 G4 的导出增强保证）。
+- 交付物
+  - node_key facing 扩展实现、回退逻辑、测试覆盖。
+- 难度评估：系数 4/5（需协调离线/运行时 facing 一致性，回退逻辑复杂）。
+- 易错点排雷
+  - facing 维度需在离线导出和运行时完全一致，避免查表失败。
+  - 回退逻辑需考虑多种缺失场景，确保服务稳定性。
+  - 测试需覆盖 facing 维度所有可能值及其组合。
+- DoD
+  - 测试通过；facing 维度离线/运行时一致；回退路径稳定可观测。
+
+#### 任务 G6：小矩阵 LP 降阶求解引擎（2×2 解析 + ≤5×5 精简）
+- 先写的测试
+  - `tests/test_small_matrix_lp.py`
+    - `test_2x2_analytic_matches_linprog()`：构造 2×2 零和矩阵（如 [[3,0],[5,1]]），断言解析解与 linprog 解在策略与游戏值上差异 ≤ 1e-8（策略）/≤ 1e-9（值）。
+    - `test_3x3_strict_domination_reduction_value_close()`：构造 3×3 含严格劣势行/列的矩阵，先行劣汰再求解，与 linprog 完整求解的值差异 ≤ 1e-7。
+    - `test_duplicate_rows_cols_coalesce()`：重复行/列合并后求解不变（策略支持集稳定，值一致）。
+    - `test_degenerate_ties_lexicographic_tiebreak()`：退化分母接近 0 或完全平局矩阵，采用词典序决策保持稳定，且回退到 linprog 时仍满足公差。
+    - `test_auto_switch_and_meta_flag()`：通过 `solve_lp(..., backend="auto", seed=...)` 触发小矩阵路径（行列≤5），断言 `result["backend"] in {"small","highs","linprog"}` 且 `result["meta"]["small_engine_used"] == True`。
+    - `test_uniform_zero_payoff_returns_uniform_or_tie_rule()`：全 0 矩阵返回均匀混合或文档规定的稳定打破策略，并与 linprog 值一致（=0）。
+- 实现要点
+  - 在 `tools/solve_lp.py` 实现：
+    - `_solve_small_matrix(payoff) -> (p_row, value, q_col, meta)`：
+      - 2×2 解析解：对 `[[a,b],[c,d]]` 使用闭式解；若分母 |a-b-c+d| < eps → 退化处理与 linprog 回退。
+      - ≤5×5：先行严格劣势/重复行列劣汰（阈值 `eps=1e-9`），若精简后为 2×2 走解析解，否则用 `linprog` 快速解但纳入 `small` 路径并写 `meta.reduced_shape`、`meta.domination_steps`。
+      - 返回对偶（列）策略 `q_col` 与 `value`。
+    - `solve_lp(..., backend="auto")`：当根节点矩阵 `rows*cols ≤ 25` 触发小矩阵路径；否则维持现有 HiGHS→linprog 逻辑。新增 CLI 选项：`--small-engine {auto,on,off} --small-max-dim 5`。
+  - 输出元信息：`meta.small_engine_used=true/false`、`meta.method={analytic|reduced|linprog_small}`、`meta.reduced_shape=(r,c)`、`meta.domination_steps=int`。
+  - 稳定性：对解析分母接近 0 的情形设置阈值与回退；对输出策略使用 `_normalize_vector`，并将极小负值截断为 0 再归一化。
+- 交付物
+  - 小矩阵引擎实现（含解析/劣汰/回退）、`solve_lp` 集成与 CLI 参数、对应单测。
+- 难度评估：系数 5/5（解析/劣汰与数值稳定、路径切换、元信息完整）。
+- 易错点排雷
+  - 解析解分母接近 0 的退化情形必须回退，以免策略爆炸；并在 `meta` 标记 `degenerate=true`。
+  - 劣汰阈值需与 linprog 公差一致（建议 1e-9），防止随机劣汰导致非一致结果。
+  - 统一种子不影响确定性；小矩阵路径不应引入随机性。
+- DoD
+  - 全部单测通过；与 linprog/HiGHS 的值一致性达标；CLI 参数可用；`meta.small_engine_used` 与方法标记正确；默认 `auto` 模式在小矩阵下优先使用小引擎。
+
+#### 任务 G7：端到端流水线验证与产物审计（覆盖率/一致性/可复现）
+- 先写的测试
+  - `tests/test_end_to_end_pipeline.py`
+    - `test_pipeline_generates_complete_artifacts_quick()`：在空目录运行 `python -m tools.m2_smoke --quick --out ...`，断言生成 `artifacts/policies/{preflop,postflop}.npz`、`artifacts/lp_solution.json`、`reports/m2_smoke.md/json` 且结构正确。
+    - `test_policy_table_coverage_audit_facing()`：运行 `python -m tools.policy_coverage_audit --policy artifacts/policies --configs configs/classifiers.yaml --out reports/policy_coverage.md`；断言报告包含 `coverage_ratio >= 0.95`（quick 可降阈）。覆盖维度含 `street,pot_type,role,pos,texture,spr,facing`；当 `bucket` 未对齐时仅对上述六+facing 维度审计。
+    - `test_offline_runtime_key_consistency_sample()`：从 NPZ 抽样节点，调用运行时 `node_key_from_observation` 还原键（模拟 obs），确保离线/运行时键一致（含 facing）。
+    - `test_pipeline_reproducibility_seeded_export()`：相同 seed、同一代码版本下，两次导出除 `generated_at` 外其他字段完全一致（可通过 `--deterministic-time` 或忽略该字段进行比较）。
+    - `test_rule_policy_diff_cli_smoke()`：运行 `python -m tools.audit_policy_vs_rules --policy artifacts/policies --rules configs/rules --out reports/policy_rule_audit.md --threshold 0.6`，断言 CLI 退出码为 0 且报告包含差异 TopN 概要。
+- 实现要点
+  - 新增 `tools/policy_coverage_audit.py`：
+    - 读取 NPZ，解析 `meta.node_key_components` 并聚合维度；根据 `configs/classifiers.yaml`（含 spr/texture/facing 阈值）与 `configs/buckets/*.json`（可选）构建“期望网格”；输出 coverage=现有节点/期望节点 比例，列出缺失组合样例（TopN）。
+    - CLI：`--policy DIR --configs PATH --out PATH --strict`；`--strict` 打开高阈值（≥0.95），否则 quick 模式（≥0.80）。
+  - 在导出器增加稳定选项（可选）：`tools.export_policy --deterministic-time` 将 `generated_at` 固定为 `0001-01-01T00:00:00Z` 便于回归比对；或在测试中剔除该字段比较。
+  - m2_smoke 集成：在报告中追加简单覆盖统计（节点数、街道分布），并标注 `solver_backend/small_engine_used`。
+- 交付物
+  - `tools/policy_coverage_audit.py`、端到端测试、覆盖率报告模板 `reports/policy_coverage.md`。
+- 难度评估：系数 4/5（跨模块集成 + 维度枚举 + 稳定性对比）。
+- 易错点排雷
+  - 期望网格与实际键的口径偏差（别名/大小写/role 前缀）需统一；建议依赖 `export_policy` 的 `node_key_components` 而非解析字符串。
+  - 桶维度在 M2 先弱化为 hand_class 标签；严格桶对齐延后在 H4 解决。
+  - 可复现性需控制随机源与排序；`export_policy` 已做稳定排序，注意过滤时间戳。
+- DoD
+  - 端到端测试通过；覆盖率报告生成且达标（quick 可降）；离线/运行时键一致；同 seed 导出内容一致（除时间戳）。
 
 ---
 
@@ -384,15 +493,16 @@
   - 需考虑与老师/策略版本的匹配，防止调参目标漂移。
 ---
 ## 产物与命令总览（M2）
-- LP 求解器封装：`tools/lp_solver.py`（HiGHS/linprog 双后端）。
+- LP 求解器封装：`tools/solve_lp.py`（HiGHS/linprog 双后端；`tools/lp_solver.py` 为兼容导出）。
 - 策略导出产物：`artifacts/policies/{preflop,postflop}.npz`、`reports/m2_smoke.md`。
 - 运行时查表模块：`packages/poker_core/suggest/policy_loader.py`、`packages/poker_core/suggest/service.py`（查表主路径）及极端规则覆盖补丁。
 - 审计/评测报告：`reports/compare_m2.md`、`reports/compare_heatmap.png`、`reports/perf_policy.json`、`reports/audit_lookup.md`、`reports/eval_m2.md`。
 - 配置与阈值：`configs/policy_manifest.yaml`、`configs/compare_thresholds.yaml`、`configs/tune_space.yaml`、`configs/ci_dependencies.yaml`、`rules.tuned.yaml`。
 - 数据集与标签：`artifacts/cases_m2.jsonl`、`artifacts/labels_teacher.jsonl`。
 可运行命令（实现后）：
-- `python -m tools.lp_solver --tree artifacts/tree_flat.json --backend auto --out artifacts/lp_solution.npz`
-- `python -m tools.export_policy --solution artifacts/lp_solution.npz --out artifacts/policies --debug-jsonl artifacts/policy_sample.jsonl`
+- `python -m tools.solve_lp --tree artifacts/tree_flat.json --buckets configs/buckets --transitions artifacts/transitions --leaf_ev artifacts/ev_cache/turn_leaf.npz --solver auto --out artifacts/lp_solution.json`
+- `python -m tools.build_policy_solution --workspace . --out artifacts/policy_solution.json`  # 仅当采用启发式表格合成
+- `python -m tools.export_policy --solution artifacts/policy_solution.json --out artifacts/policies --debug-jsonl reports/policy_sample.jsonl`
 - `python -m tools.m2_smoke --out reports/m2_smoke.md --quick`
 - `python -m tools.gen_cases --streets preflop,flop,turn --N 2000 --out artifacts/cases_m2.jsonl --include-extremes`
 - `python -m tools.teacher_label --in artifacts/cases_m2.jsonl --out artifacts/labels_teacher.jsonl`
@@ -401,6 +511,14 @@
 - `python -m tools.audit_policy_vs_rules --policy artifacts/policies --rules configs/rules --out reports/policy_rule_audit.md`
 - `python -m tools.eval_baselines --policy artifacts/policies --hands 200000 --out reports/eval_m2.md`
 - `python -m tools.ci_dependency_guard --manifest configs/ci_dependencies.yaml`
+
+补充说明（完整策略表最小定义）
+- 维度覆盖：street∈{preflop,flop,turn,river}；pot_type≥{single_raised,(flop 可含 limped)}；role∈{pfr,caller}（limped 可为 na）；pos∈{ip,oop}；texture∈{dry,semi,wet,na}（preflop/river 可为 na）；spr 按 `configs/classifiers.yaml`；facing∈{na,third,half,two_third_plus}；bucket∈{bucket_id 或 hand_class 标签，见 H4 对齐）。
+- 动作集：
+  - 未下注节点（facing=na）：postflop 至少含 `{bet,size_tag∈{third/half/two_third},weight}` 与 `{check,weight}`；preflop 含 `{raise/call/fold}`。
+  - 面对下注节点（facing∈{third,half,two_third_plus}）：至少含 `{call,weight}`、`{fold,weight}`、`{raise,size_tag,weight}`。
+- 一致性：离线 `node_key` 与运行时 `node_key_from_observation` 完全一致；NPZ `meta.node_key_components` 含 facing。
+- 可复现：同一 seed 下导出产物字节级一致；审计覆盖率通过 G7。
 ---
 ## 建议执行顺序
 1) G1 → G2 → G3（LP 求解与策略表产出流水线）。

@@ -142,75 +142,26 @@
    ```
 
 ### 8.3 云端一键求解脚本（推荐）
-7. **创建一键脚本**：在云端当前目录编写 `run_cloud_pipeline.sh`，内容如下：
+7. **使用仓库自带脚本**：仓库的 `scripts/run_cloud_pipeline.sh` 已封装最新的一键命令（内部调用 `python -m tools.m2_smoke`），会在目标工作目录生成 `artifacts/`、`reports/m2_smoke_cloud.md` 等产物，并默认复用已存在的文件以节省算力。首次使用时确保脚本具备执行权限：
    ```bash
-   cat <<'SCRIPT' > run_cloud_pipeline.sh
-   #!/usr/bin/env bash
-   set -euo pipefail
-   WORKDIR=${1:-$(pwd)}
-   OUTDIR=${WORKDIR}/artifacts
-   REPORT=${WORKDIR}/reports/m2_smoke_cloud.md
-
-   mkdir -p "$OUTDIR" "$WORKDIR/reports"
-
-   if [ ! -f "${OUTDIR}/tree_flat.json" ]; then
-       python -m tools.build_tree \
-           --config configs/trees/hu_discrete_2cap.yaml \
-           --out ${OUTDIR}/tree_flat.json
-   fi
-
-   if [ ! -d "${OUTDIR}/transitions" ]; then
-       mkdir -p ${OUTDIR}/transitions
-       python -m tools.estimate_transitions \
-           --from flop --to turn --samples 200000 \
-           --out ${OUTDIR}/transitions/flop_to_turn.json
-       python -m tools.estimate_transitions \
-           --from turn --to river --samples 200000 \
-           --out ${OUTDIR}/transitions/turn_to_river.json
-   fi
-
-   if [ ! -f "${OUTDIR}/ev_cache/turn_leaf.npz" ]; then
-       mkdir -p ${OUTDIR}/ev_cache
-       python -m tools.cache_turn_leaf_ev \
-           --trans ${OUTDIR}/transitions/turn_to_river.json \
-           --out ${OUTDIR}/ev_cache/turn_leaf.npz
-   fi
-
-   python -m tools.solve_lp \
-       --tree ${OUTDIR}/tree_flat.json \
-       --buckets configs/buckets \
-       --transitions ${OUTDIR}/transitions \
-       --leaf_ev ${OUTDIR}/ev_cache/turn_leaf.npz \
-       --solver auto \
-       --out ${OUTDIR}/lp_solution.json
-
-   python -m tools.export_policy \
-       --solution ${OUTDIR}/lp_solution.json \
-       --out ${OUTDIR}/policies \
-       --compress \
-       --debug-jsonl ${OUTDIR}/policy_sample.jsonl
-
-   python -m tools.m2_smoke \
-       --workspace "$WORKDIR" \
-       --out "$REPORT" \
-       --reuse
-
-   SCRIPT
-   chmod +x run_cloud_pipeline.sh
+   chmod +x scripts/run_cloud_pipeline.sh
    ```
-   - 根据需要将 `--tree`、`--transitions` 等输入替换为已同步到云端的真实文件路径。如果这些产物也需在云端生成，可在脚本前追加 `tools.build_buckets`、`tools.build_tree` 等命令。
+   - 如需在其他目录（例如 `/mnt/pipeline_workspace`）写入产物，可将路径作为脚本第一个参数传入；剩余参数将透传给 `tools.m2_smoke`，因此可以追加 `--quick`、`--force`、`--seed 42` 等开关。 【F:scripts/run_cloud_pipeline.sh†L1-L49】
 
 8. **运行脚本并监控**：
    ```bash
    source ~/gto-venv/bin/activate
    cd ~/workspace/poker
-   ./run_cloud_pipeline.sh
-   tail -f reports/m2_smoke_cloud.md  # 观察进度，可在运行结束后退出
+   bash scripts/run_cloud_pipeline.sh            # 默认在仓库根目录生成产物
+   # 或者指定云端工作目录 + 追加参数
+   bash scripts/run_cloud_pipeline.sh /mnt/pipeline_workspace --force --seed 2024
+   tail -f reports/m2_smoke_cloud.md             # 自定义目录时改为 tail -f /mnt/pipeline_workspace/reports/m2_smoke_cloud.md
    ```
+   - 命令结束后，关键文件位于 `${WORKDIR}/artifacts` 与 `${WORKDIR}/reports/m2_smoke_cloud.md`，其中 `WORKDIR` 默认为仓库根目录或脚本入参指定的路径。 【F:scripts/run_cloud_pipeline.sh†L11-L48】
    - 若需要在后台运行，可参考下文“8.4 SSH 断开连接时确保脚本不中断”。
 
 ### 8.4 SSH 断开连接时确保脚本不中断
-- **为何会中断？** `scripts/run_cloud_pipeline.sh` 串行执行多个 Python 模块，默认附着在当前 SSH 会话；一旦网络断开或关闭终端，系统会向前台作业发送 `SIGHUP`，脚本及其子进程会立即退出，导致长时任务中断。 【F:scripts/run_cloud_pipeline.sh†L1-L49】
+- **为何会中断？** `scripts/run_cloud_pipeline.sh` 会在当前 Shell 中启动 `python -m tools.m2_smoke` 长任务；一旦 SSH 连接断开或终端被关闭，系统会向前台作业发送 `SIGHUP`，脚本及其子进程会立即退出，导致求解未完成。 【F:scripts/run_cloud_pipeline.sh†L1-L49】
 - **首选方案：使用终端复用器**。
   1. 登录云主机后启动新的 `tmux` 会话：
      ```bash
@@ -253,6 +204,6 @@
 
 ### 8.6 日常复用 & 自动化
 - **增量更新**：后续只需同步改动的配置或脚本（可使用 `rsync -az`），云端脚本可复用。
-- **自动触发**：可在 CI/CD 中创建 job，通过云厂商的 API 启动实例、执行 `run_cloud_pipeline.sh` 并把 `cloud_results.tgz` 上传至对象存储，再由本地/其他流水线下载。
+- **自动触发**：可在 CI/CD 中创建 job，通过云厂商的 API 启动实例、执行 `scripts/run_cloud_pipeline.sh` 并把 `cloud_results.tgz` 上传至对象存储，再由本地/其他流水线下载。
 - **版本记录**：在 `reports/` 中维护 `m2_smoke_cloud.md` 与当前策略表哈希、生成时间，用于审计与回滚。
 
