@@ -35,20 +35,22 @@ def _normalize_action(action: dict[str, Any]) -> dict[str, Any]:
 
 def _build_nodes(config: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     nodes_cfg = config.get("nodes") or []
+    terminal_nodes_cfg = config.get("terminal_nodes") or []
     if not isinstance(nodes_cfg, list):
         raise ValueError("config.nodes must be a list")
+    if not isinstance(terminal_nodes_cfg, list):
+        raise ValueError("config.terminal_nodes must be a list")
 
     nodes: list[dict[str, Any]] = []
     edges: list[dict[str, str]] = []
     node_ids: set[str] = set()
 
     # 收集所有有效的目标节点ID（包括terminals）
-    terminals_cfg = config.get("terminals") or []
-    terminals = set(terminals_cfg)
     valid_targets = set()
 
-    # 首先收集所有节点ID
-    for raw_node in nodes_cfg:
+    # 首先收集所有节点ID（包括终端节点）
+    all_nodes = nodes_cfg + terminal_nodes_cfg
+    for raw_node in all_nodes:
         node_id = raw_node.get("id")
         if not node_id:
             raise ValueError("Each node requires an id")
@@ -57,11 +59,8 @@ def _build_nodes(config: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dic
         node_ids.add(node_id)
         valid_targets.add(node_id)
 
-    # 添加terminals到有效目标集合
-    valid_targets.update(terminals)
-
-    # 构建节点和边
-    for raw_node in nodes_cfg:
+    # 构建节点和边（包括终端节点）
+    for raw_node in all_nodes:
         node_id = raw_node.get("id")
         actions_raw = raw_node.get("actions") or []
         actions = [_normalize_action(a) for a in actions_raw]

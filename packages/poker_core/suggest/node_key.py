@@ -9,6 +9,28 @@ from .classifiers import classify_board_texture
 from .classifiers import classify_spr_bin
 from .types import Observation
 
+_FACING_ALIASES = {
+    "two_third": "two_third+",
+    "two_third_plus": "two_third+",
+    "twothird+": "two_third+",
+    "third_pot": "third",
+    "half_pot": "half",
+}
+
+_KNOWN_FACING = {"na", "third", "half", "two_third+"}
+
+
+def canonical_facing_tag(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    if not text:
+        return "na"
+    if text in _KNOWN_FACING:
+        return text
+    alias = _FACING_ALIASES.get(text)
+    if alias:
+        return alias
+    return "na"
+
 
 def _slug(value: Any) -> str:
     text = str(value or "").strip().lower()
@@ -29,6 +51,11 @@ def node_key_from_observation(obs: Observation) -> str:
 
     spr_label = classify_spr_bin(None, getattr(obs, "spr_bucket", None))
 
+    facing_raw = getattr(obs, "facing_size_tag", None)
+    facing = canonical_facing_tag(facing_raw)
+    if street == "preflop":
+        facing = "na"
+
     hand_class = _slug(getattr(obs, "hand_class", "unknown")) or "unknown"
 
     parts = [
@@ -38,6 +65,7 @@ def node_key_from_observation(obs: Observation) -> str:
         position,
         f"texture={texture}",
         f"spr={spr_label}",
+        f"facing={facing}",
         f"hand={hand_class}",
     ]
     return "|".join(parts)
@@ -46,5 +74,6 @@ def node_key_from_observation(obs: Observation) -> str:
 __all__ = [
     "classify_board_texture",
     "classify_spr_bin",
+    "canonical_facing_tag",
     "node_key_from_observation",
 ]

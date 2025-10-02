@@ -19,7 +19,7 @@ def toy_problem() -> tuple[dict, dict, dict, dict]:
                     {"name": "check", "next": "villain_after_check"},
                 ],
                 "policy": {
-                    "node_key": "preflop/single_raised/role:pfr/ip/texture:na/spr:mid/bucket:0",
+                    "node_key": "preflop/single_raised/role:pfr/ip/texture:na/spr:mid/facing:na/bucket:0",
                     "street": "preflop",
                     "pot_type": "single_raised",
                     "role": "pfr",
@@ -52,7 +52,7 @@ def toy_problem() -> tuple[dict, dict, dict, dict]:
         ],
         "policy_nodes": [
             {
-                "node_key": "flop/single_raised/role:caller/oop/texture:dry/spr:mid/bucket:4",
+                "node_key": "flop/single_raised/role:caller/oop/texture:dry/spr:mid/facing:na/bucket:4",
                 "street": "flop",
                 "pot_type": "single_raised",
                 "role": "caller",
@@ -66,7 +66,7 @@ def toy_problem() -> tuple[dict, dict, dict, dict]:
                 ],
             },
             {
-                "node_key": "turn/single_raised/role:pfr/ip/texture:semi/spr:low/bucket:2",
+                "node_key": "turn/single_raised/role:pfr/ip/texture:semi/spr:low/facing:na/bucket:2",
                 "street": "turn",
                 "pot_type": "single_raised",
                 "role": "pfr",
@@ -163,7 +163,10 @@ def test_solver_emits_policy_nodes(tmp_path, toy_problem):
 
     preflop = next((node for node in nodes if node["street"] == "preflop"), None)
     assert preflop is not None
-    assert preflop["node_key"] == "preflop/single_raised/role:pfr/ip/texture:na/spr:mid/bucket:0"
+    assert (
+        preflop["node_key"]
+        == "preflop/single_raised/role:pfr/ip/texture:na/spr:mid/facing:na/bucket:0"
+    )
 
     hero_strategy = result["strategy"]
     actions = {arm["action"]: arm for arm in preflop["actions"]}

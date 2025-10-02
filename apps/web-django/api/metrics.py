@@ -45,6 +45,13 @@ try:
         "suggest_no_legal_actions_total", "No legal actions", ["policy", "street"]
     )
 
+    POLICY_LOOKUP = _get_or_create_counter(
+        "policy_lookup_total", "Policy table lookup results", ["result", "street", "facing"]
+    )
+    POLICY_FALLBACK = _get_or_create_counter(
+        "policy_fallback_total", "Policy fallback breakdown", ["kind", "street", "facing"]
+    )
+
     # --- API 通用指标 ---
     API_LATENCY = _get_or_create_hist(
         "api_latency_seconds", "API latency", ["route", "method", "status"]
@@ -66,6 +73,12 @@ try:
 
     def inc_no_legal_actions(policy: str, street: str | None = None):
         SUGGEST_NOLEGAL.labels(policy or "unknown", street or "unknown").inc()
+
+    def inc_policy_lookup(result: str, street: str | None = None, facing: str | None = None):
+        POLICY_LOOKUP.labels(result or "unknown", street or "unknown", facing or "na").inc()
+
+    def inc_policy_fallback(kind: str, street: str | None = None, facing: str | None = None):
+        POLICY_FALLBACK.labels(kind or "unknown", street or "unknown", facing or "na").inc()
 
     # --- API 通用封装 ---
     def observe_request(route: str, method: str, status: str, seconds: float):
@@ -163,6 +176,12 @@ except Exception as e:  # 无 Prometheus 或初始化失败时降级
         pass
 
     def inc_no_legal_actions(policy: str, street: str | None = None):
+        pass
+
+    def inc_policy_lookup(result: str, street: str | None = None, facing: str | None = None):
+        pass
+
+    def inc_policy_fallback(kind: str, street: str | None = None, facing: str | None = None):
         pass
 
     def observe_request(route: str, method: str, status: str, seconds: float):

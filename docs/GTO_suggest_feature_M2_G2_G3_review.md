@@ -142,7 +142,10 @@
    ```
 
 ### 8.3 云端一键求解脚本（推荐）
-7. **使用仓库自带脚本**：仓库的 `scripts/run_cloud_pipeline.sh` 已封装最新的一键命令（内部调用 `python -m tools.m2_smoke`），会在目标工作目录生成 `artifacts/`、`reports/m2_smoke_cloud.md` 等产物，并默认复用已存在的文件以节省算力。首次使用时确保脚本具备执行权限：
+7. **使用仓库自带脚本**：仓库的 `scripts/run_cloud_pipeline.sh` 已封装最新的一键命令：
+   - 轻量模式（默认）：内部调用 `python -m tools.m2_smoke`（玩具树），快速产出 `artifacts/policies/*.npz` 和报告，默认 `--reuse`。
+   - 完整模式：新增 `--full` 开关，串联 `build_* → solve_lp → export_policy` 并默认复用已存在产物；首次执行会将 `configs/size_map.yaml`、`configs/classifiers.yaml`、`configs/trees/hu_discrete_2cap.yaml` 复制到目标工作目录。适合云端长跑与增量刷新。
+   首次使用时确保脚本具备执行权限：
    ```bash
    chmod +x scripts/run_cloud_pipeline.sh
    ```
@@ -152,12 +155,16 @@
    ```bash
    source ~/gto-venv/bin/activate
    cd ~/workspace/poker
+   # 轻量（玩具树）：
    bash scripts/run_cloud_pipeline.sh            # 默认在仓库根目录生成产物
-   # 或者指定云端工作目录 + 追加参数
-   bash scripts/run_cloud_pipeline.sh /mnt/pipeline_workspace --force --seed 2024
+   
+   # 完整（串联 build_* → solve_lp → export_policy）：
+   bash scripts/run_cloud_pipeline.sh --full --quick --seed 2024             # 在仓库根目录
+   # 或指定工作目录，并按需强制覆盖
+   bash scripts/run_cloud_pipeline.sh /mnt/pipeline_workspace --full --force --seed 2024
    tail -f reports/m2_smoke_cloud.md             # 自定义目录时改为 tail -f /mnt/pipeline_workspace/reports/m2_smoke_cloud.md
    ```
-   - 命令结束后，关键文件位于 `${WORKDIR}/artifacts` 与 `${WORKDIR}/reports/m2_smoke_cloud.md`，其中 `WORKDIR` 默认为仓库根目录或脚本入参指定的路径。 【F:scripts/run_cloud_pipeline.sh†L11-L48】
+   - 命令结束后，关键文件位于 `${WORKDIR}/artifacts` 与 `${WORKDIR}/reports/m2_smoke_cloud.md`，其中 `WORKDIR` 默认为仓库根目录或脚本入参指定的路径。 【F:scripts/run_cloud_pipeline.sh】
    - 若需要在后台运行，可参考下文“8.4 SSH 断开连接时确保脚本不中断”。
 
 ### 8.4 SSH 断开连接时确保脚本不中断
@@ -206,4 +213,3 @@
 - **增量更新**：后续只需同步改动的配置或脚本（可使用 `rsync -az`），云端脚本可复用。
 - **自动触发**：可在 CI/CD 中创建 job，通过云厂商的 API 启动实例、执行 `scripts/run_cloud_pipeline.sh` 并把 `cloud_results.tgz` 上传至对象存储，再由本地/其他流水线下载。
 - **版本记录**：在 `reports/` 中维护 `m2_smoke_cloud.md` 与当前策略表哈希、生成时间，用于审计与回滚。
-

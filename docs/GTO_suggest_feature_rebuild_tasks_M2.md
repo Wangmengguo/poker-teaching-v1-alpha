@@ -8,17 +8,23 @@
 
 ### G. LP 求解 & 策略表产出（离线）
 
+【M2 节点键/表结构口径（Schema 决策）】
+- node_key 字符串沿用运行时风格：`street|pot_type|role|{ip|oop}|texture=...|spr=...|hand=...`，M2 阶段新增 `facing=...` 段；导出器以 JSON 字段为准生成 `meta.node_key_components`，不强依赖 node_key 解析。
+- facing 取值与运行时保持一致：`na|third|half|two_third+`（注意 `two_third+` 命名，避免与 `two_third` 尺寸标签混淆）。
+- bucket 在 M2 以教学 `hand_class` 标签为主（`bucket=na` 或标签）；严格桶 id 对齐放入 H4。
+- NPZ 表主键为 `node_key`；每节点包含 `actions/weights/size_tags` 与 `meta.node_key_components`（含 facing）。
+
 【G 阶段现状核查与差距（查漏补缺）】
 - 已完成并有测试覆盖
   - G1（双后端 LP）：`tools/solve_lp.py` 提供 HiGHS/linprog 双后端与 CLI，`tests/test_lp_solver_backend.py` 覆盖最优值、对偶价格、一致性与异常路径；兼容包装 `tools/lp_solver.py` 仅作导出（无 CLI）。
   - G2（策略导出）：`tools/export_policy.py` 已输出 `artifacts/policies/{preflop,postflop}.npz`，`tests/test_policy_export.py` 覆盖 NPZ 结构与 `node_key_components` 基本字段（street/pot_type/role/pos/texture/spr/bucket）。
   - G3（离线烟囱）：`tools/m2_smoke.py` 串联最小产物并生成报告，`tests/test_tools_smoke_m2.py` 验证产物/报告与幂等参数（reuse/force）。
 - 与“完整策略表”的主要差距
-  - 缺少 facing 维度建表：离线产物尚未覆盖“面对下注”情形（facing=third|half|two_third_plus），仅含未下注节点（bet/check）。
+  - 缺少 facing 维度建表：离线产物尚未覆盖“面对下注”情形（facing=third|half|two_third+），仅含未下注节点（bet/check）。
   - node_key 口径未含 facing：运行时 `packages/poker_core/suggest/node_key.py` 生成的键不含 facing，离线/运行时键不完全一致，查表难以命中防守节点。
   - 元数据缺口：导出 NPZ 的 `meta.node_key_components` 未包含 facing 字段，后续审计与一致性校验不完整。
   - 枚举范围不足：`tools/build_policy_solution.py` 仅生成 single_raised +（flop 可含 limped） 且未列举防守动作集（call/fold/raise），postflop `bucket` 以 hand_class 文本填充（`bucket=na`），缺少桶 id 跟运行时的对齐通道（见 H4）。
-  - 文档命令偏差：LP CLI 实际为 `python -m tools.solve_lp --out artifacts/lp_solution.json`，而非 `tools.lp_solver`/`.npz`。
+  - 文档命令偏差：LP CLI 实际为 `python -m tools.solve_lp --tree ... --buckets ... --transitions ... --leaf_ev ... --out artifacts/lp_solution.json`，而非 `tools.lp_solver`/`.npz`。
 → 目标：本阶段补齐 facing 维度（离线/运行时/导出一致）、明确动作集（防守含 call/fold/raise 至少一档 size）、修正命令，并增加覆盖审计，确保产出“可查表的完整策略表”。
 
 #### ✅ 任务 G1：LP 求解器模块化封装（HiGHS/linprog 双后端）
@@ -45,10 +51,10 @@
 - 先写的测试
   - `tests/test_policy_export.py`
     - `test_export_policy_writes_npz_and_metadata()`：调用工具后生成 `artifacts/policies/{preflop,postflop}.npz`，文件内含 `actions, weights, meta`。
-    - `test_policy_export_respects_node_key_schema()`：抽样若干节点，断言 `meta.node_key_components` 覆盖 street/pot_type/role/pos/texture/spr/bucket，与 `node_key` 一致。
+    - `test_policy_export_respects_node_key_schema()`：抽样若干节点，断言 `meta.node_key_components` 覆盖 street/pot_type/role/pos/texture/spr/bucket（G4 完成后含 facing），与 `node_key` 一致。
     - `test_policy_export_handles_zero_weight_actions()`：包含 0 权重臂时仍保留记录并在 `meta.zero_weight_actions` 标记，确保导出稳定。
 - 实现要点
-  - 读取 `tools.lp_solver` 产出的策略向量，结合树结构序列化为离线查表格式。
+  - 读取 `python -m tools.solve_lp`（或启发式 `tools.build_policy_solution`）产出的节点/策略，结合树/配置序列化为离线查表格式。
   - 输出 NPZ 主格式 + 可选 `--debug-jsonl` 抽样文件；meta 记录源配置 hash、solver backend、生成时间、seed、版本号。
   - 支持 `--compress` 与分片参数控制单文件大小；保持 deterministic 排序便于 diff。
 - 交付物
@@ -81,20 +87,20 @@
 - DoD
   - 测试通过；在干净目录下一键生成全部 M2 离线产物并产出报告；报告首行 `PASS`。
 
-#### 任务 G4：`build_policy_solution.py` 扩展 facing 维度（third/half/two_third_plus）
+#### ✅ 任务 G4：`build_policy_solution.py` 扩展 facing 维度（third/half/two_third+）
 - 先写的测试
   - `tests/test_build_policy_solution_facing.py`
-    - `test_facing_dimensions_exported()`：调用 `build_policy_solution` 后，断言产物包含 `...|facing=third|...`、`...|facing=half|...`、`...|facing=two_third_plus|...` 的节点；且同时存在未下注节点 `facing=na`。
-    - `test_facing_weights_calculated_correctly()`：验证不同 facing 下注尺寸对应的权重计算逻辑（示例：third≈0.3, half≈0.5, two_third_plus≈0.7，可通过阈值断言 ±0.05）。
+    - `test_facing_dimensions_exported()`：调用 `build_policy_solution` 后，断言产物包含 `...|facing=third|...`、`...|facing=half|...`、`...|facing=two_third+|...` 的节点；且同时存在未下注节点 `facing=na`。
+    - `test_facing_weights_calculated_correctly()`：验证不同 facing 下注尺寸对应的权重计算逻辑（示例：third≈0.3, half≈0.5, two_third+≈0.7，可通过阈值断言 ±0.05）。
     - `test_facing_defense_action_set()`：面对下注节点的动作集至少包含 `call`、`fold`、`raise`（可先以单一 `raise` 档，如 `raise_half` 或 `raise_small` 对齐服务 size_tag 定义）。
     - `test_facing_fallback_to_default()`：当无法判定 facing（或未配置）时，回退到 `facing=na` 且 `meta.facing_fallback=true`。
 - 实现要点
   - 扩展 `tools/build_policy_solution.py`：
     - 枚举 postflop “未下注”节点：`facing=na`，动作集 `[{bet,size_tag,weight},{check,weight}]`（保留原逻辑）。
-    - 枚举 postflop “面对下注”节点：`facing ∈ {third,half,two_third_plus}`，动作集 `[{call,w_c},{fold,w_f},{raise,size_tag=w_r}]`，默认提供一档 `raise` size_tag（与 `packages/poker_core/suggest/utils.py` 的 size 语义一致）。
-    - `node_key` 增加段 `facing=...`；节点对象增加 `"facing": ...` 字段。
+    - 枚举 postflop “面对下注”节点：`facing ∈ {third,half,two_third+}`，动作集 `[{call,w_c},{fold,w_f},{raise,size_tag,w_r}]`，默认提供一档 `raise` size_tag（与 `packages/poker_core/suggest/utils.py` 的尺寸语义一致）。
+    - `node_key` 增加段 `facing=...`；节点对象增加 `"facing": ...` 字段；未下注节点固定 `facing=na`。
     - 提供配置接口：`configs/policy_manifest.yaml` 或沿用 `configs/classifiers.yaml` 内新增 `facing_weights`，支持覆写默认 `w_c/w_f/w_r` 与 size_tag 映射；权重归一化由导出器兜底。
-  - 配套导出增强（小改动，见下）：`tools/export_policy.py` 的 `node_key_components` 新增 `facing`，并原样落盘到 NPZ `meta`。
+  - 配套导出增强（小改动，见下）：`tools/export_policy.py` 的 `node_key_components` 新增 `facing`，并原样落盘到 NPZ `meta`；当原始 JSON 缺失 `facing` 字段时填充 `na` 并在 `meta` 标记 `facing_fallback=true`。
 - 交付物
   - 扩展的 `build_policy_solution.py`；`tests/test_build_policy_solution_facing.py`；`tools/export_policy.py` 增加 `facing` 组件导出。
 - 难度评估：系数 3/5（维度扩展相对直接，但需确保与现有逻辑兼容）。
@@ -103,27 +109,72 @@
   - 权重计算需考虑数值稳定性，避免浮点精度问题。
   - 回退逻辑需确保服务稳定性，避免 facing 缺失导致服务中断。
 - DoD
-  - 测试通过；产物包含 `facing ∈ {na,third,half,two_third_plus}`；防守动作集齐备；`meta.node_key_components.facing` 存在；回退路径稳定。
+  - 测试通过；产物包含 `facing ∈ {na,third,half,two_third+}`；防守动作集齐备；`meta.node_key_components.facing` 存在；回退路径稳定。
 
-#### 任务 G5：运行时 node_key facing 扩展与 fallback
+- 进展记录（G4 实做小结）
+  - `tools/build_policy_solution.py` 现以启发式防守策略生成 `facing ∈ {na, third, half, two_third+}` 节点，默认折叠率约 `0.30/0.50/0.70`，并在配置缺口时将缺失尺寸聚合到 `facing=na` 的 `fallback_from` 元数据中。
+  - `tools/export_policy.py` 补齐 `node_key_components.facing` 与 `meta.facing_fallback` 导出逻辑，新测 `tests/test_build_policy_solution_facing.py`、`tests/test_policy_export.py`、`tests/test_policy_loader.py` 均覆盖离线产物和回退路径。
+
+> （里程碑小结）当前 G1–G4 已全部完成，离线求解、策略导出与启发式产物均覆盖 facing 维度，为运行时查表扩展（G5）与后续小矩阵求解（G6）提供稳定前置。
+
+- G5 下一阶段建议
+  - 扩展 `packages/poker_core/suggest/node_key.py` 与 service 查表路径，使运行时 `facing` 与离线键完全一致，并串联 `fallback_from` 观测以便告警。
+  - 在策略加载层验证新 NPZ 元信息（`node_meta`）可被消费，同时评估 `limped`/极端 pot_type 的回退是否需要补齐真实策略表。
+
+#### ✅ 任务 G5：运行时 node_key facing 扩展与 fallback（与生产级策略表对齐）
 - 先写的测试
   - `tests/test_node_key_facing.py`
-    - `test_node_key_includes_facing_when_available()`：构造带 facing 信息的 Observation，断言导出的 node_key 包含 `facing=third|half|two_third_plus`。
-    - `test_facing_fallback_to_default_size()`：当 facing 信息缺失时，回退到默认下注尺寸并在 `meta` 中标记 `facing_fallback=true`。
-    - `test_facing_consistency_across_runtime_offline()`：验证运行时 node_key 与离线策略表 facing 维度完全一致。
-- 实现要点
-  - 扩展 `packages/poker_core/suggest/node_key.py`：`node_key = ...|facing={obs.facing_size_tag or 'na'}|...`（保留 `texture/spr/hand` 段）。
-  - `packages/poker_core/suggest/service.py`：查表前组装 `meta.node_key`，当 `obs.facing_size_tag='na'` 且为“面对下注路径”时设置 `meta.facing_fallback=true` 并降级到规则或保守策略。
-  - 确保 NPZ 中 `node_key` 与 `node_key_components.facing` 一致（由 G4 的导出增强保证）。
-- 交付物
-  - node_key facing 扩展实现、回退逻辑、测试覆盖。
-- 难度评估：系数 4/5（需协调离线/运行时 facing 一致性，回退逻辑复杂）。
-- 易错点排雷
-  - facing 维度需在离线导出和运行时完全一致，避免查表失败。
-  - 回退逻辑需考虑多种缺失场景，确保服务稳定性。
-  - 测试需覆盖 facing 维度所有可能值及其组合。
-- DoD
-  - 测试通过；facing 维度离线/运行时一致；回退路径稳定可观测。
+    - `test_node_key_includes_facing_when_available()`：构造 `to_call>0` 的 Observation，断言键格式扩展为 `street|pot_type|role|{ip|oop}|texture=·|spr=·|facing=·|hand=·`。
+    - `test_facing_fallback_to_default_size()`：模拟 `facing_size_tag='na'` 且面对下注，验证服务跳过策略表、回退到规则策略，并写入 `meta.facing_fallback=true` 与 `debug.meta.policy_fallback=true`。
+    - `test_facing_consistency_across_runtime_offline()`：从 G4 产物抽样 `facing=half` 节点，构造 Observation 还原键，断言运行时键与离线键完全一致。
+  - `tests/test_service_policy_path.py` 更新：Pol icy 命中/回退用例补齐 `facing=na` 键结构，确保加载层与服务层契约同步。
+
+- 实现要点（运行时）
+  - 键生成：`packages/poker_core/suggest/node_key.py` 在 `spr=` 段后插入 `facing=`，并新增 `canonical_facing_tag` 统一别名（preflop 固定 `na`）。
+  - 查表回退：`packages/poker_core/suggest/service.py` 在面对下注但缺失 `facing` 标签时跳过 NPZ 查表，直接退回规则策略；命中路径沿用策略表分发，同时保留原有的 `policy_fallback` 记录。
+  - 元数据：策略表加载、策略导出、规则审计测试均补齐 `node_key_components.facing`，`meta`/`debug.meta` 增加 `facing_size_tag` 与 `facing_fallback` 标记。
+
+- 进展记录（G5 实做小结）
+  - 离线产物、加载层与运行时键格式一致（含 facing）；G1–G4 基础能力全部串联完成。
+  - `meta.facing_fallback`/`debug.meta.facing_fallback` 可观测缺失尺寸的回退链路，避免运行时静默 miss。
+
+- G6 下一阶段建议
+  1. 延伸指标（`policy_lookup_total{facing}`、`policy_fallback_total{kind}`）到遥测层，量化 facing 节点命中率。
+  2. 结合 G7 计划实现 `policy_coverage_audit`，对 `street,pot_type,role,pos,texture,spr,facing` 维度做静态覆盖扫描。
+  3. 预研面向多档防守尺寸的策略表（保留 `two_third_plus` 别名），为策略升级留好接口。
+
+##### G5 开发者清单（Actionable）
+- 代码修改
+  - `packages/poker_core/suggest/node_key.py`
+    - 对非 preflop 且 `to_call>0` 的 Observation，在 `spr=` 段后、`hand=` 前追加 `facing={obs.facing_size_tag or 'na'}`；
+      无对手下注或 preflop 固定 `facing=na`。
+  - `packages/poker_core/suggest/service.py`（查表分支）
+    - 依次尝试：精确键 → 别名键（`two_third+ ↔ two_third_plus`）→ 将 `facing` 改为 `na` 的键；收集 `attempted_keys`。
+    - 未命中精确键时，设置 `meta.facing_fallback=true`；若命中别名，设置 `meta.facing_alias_applied=true`。
+    - 在 `resp.debug.meta` 写入 `attempted_keys`、`policy_fallback` 与可选 `facing_alias_applied`。
+  - （可选）`apps/web-django/api/metrics.py`
+    - 扩展计数器/直方图标签：`policy_lookup_total{result, facing}` 与 `policy_fallback_total{kind}`。
+
+- 新增/扩展测试
+  - `tests/test_node_key_facing.py`
+    - `test_node_key_includes_facing_when_available`
+    - `test_node_key_facing_na_when_no_bet`
+    - `test_facing_consistency_across_runtime_offline`
+  - `tests/test_service_policy_path.py`
+    - 含 `facing=half` 的 NPZ 命中用例；仅 `facing=na` 存在时的降级命中用例；别名命中用例（表写 `two_third_plus`）。
+
+- 验证步骤（本地/CI Quick）
+  - 产出样例表：
+    - `python -m tools.build_policy_solution --out artifacts/policy_solution.json`
+    - `python -m tools.export_policy --solution artifacts/policy_solution.json --out artifacts/policies`
+  - 单测：`pytest -q tests/test_node_key_facing.py tests/test_service_policy_path.py`
+  - Smoke：`python -m tools.m2_smoke --out reports/m2_smoke.md --quick`；手动采样面对下注场景，检查 `resp.debug.meta.attempted_keys` 与 `meta.policy_source`。
+
+- DoD（补充）
+  - 含 facing 表下，`policy_fallback_total{kind in {facing_na,rule,conservative}} / policy_lookup_total ≤ 5%`（CI quick ≤10%）。
+  - `resp.debug.meta` 含 `attempted_keys` 与 `policy_fallback`；日志可还原回退路径。
+
+— 完成影响：运行时可直接命中“含 facing 维度”的策略节点，降低回退比例，提升 G7 覆盖审计与 G6 评测质量。
 
 #### 任务 G6：小矩阵 LP 降阶求解引擎（2×2 解析 + ≤5×5 精简）
 - 先写的测试
@@ -509,14 +560,24 @@
 - `python -m tools.compare --cases artifacts/cases_m2.jsonl --labels artifacts/labels_teacher.jsonl --student artifacts/policies --report reports/compare_m2.md --heatmap reports/compare_heatmap.png`
 - `python -m tools.tune --space configs/tune_space.yaml --trials 100 --in rules --out rules.tuned.yaml`
 - `python -m tools.audit_policy_vs_rules --policy artifacts/policies --rules configs/rules --out reports/policy_rule_audit.md`
+- `python -m tools.policy_coverage_audit --policy artifacts/policies --configs configs/classifiers.yaml --out reports/policy_coverage.md --strict`
 - `python -m tools.eval_baselines --policy artifacts/policies --hands 200000 --out reports/eval_m2.md`
 - `python -m tools.ci_dependency_guard --manifest configs/ci_dependencies.yaml`
 
 补充说明（完整策略表最小定义）
-- 维度覆盖：street∈{preflop,flop,turn,river}；pot_type≥{single_raised,(flop 可含 limped)}；role∈{pfr,caller}（limped 可为 na）；pos∈{ip,oop}；texture∈{dry,semi,wet,na}（preflop/river 可为 na）；spr 按 `configs/classifiers.yaml`；facing∈{na,third,half,two_third_plus}；bucket∈{bucket_id 或 hand_class 标签，见 H4 对齐）。
+- 维度覆盖：street∈{preflop,flop,turn,river}；pot_type≥{single_raised,(flop 可含 limped)}；role∈{pfr,caller}（limped 可为 na）；pos∈{ip,oop}；texture∈{dry,semi,wet,na}（preflop/river 可为 na）；spr 按 `configs/classifiers.yaml`；facing∈{na,third,half,two_third+}；bucket∈{bucket_id 或 hand_class 标签，见 H4 对齐）。
 - 动作集：
   - 未下注节点（facing=na）：postflop 至少含 `{bet,size_tag∈{third/half/two_third},weight}` 与 `{check,weight}`；preflop 含 `{raise/call/fold}`。
-  - 面对下注节点（facing∈{third,half,two_third_plus}）：至少含 `{call,weight}`、`{fold,weight}`、`{raise,size_tag,weight}`。
+- 面对下注节点（facing∈{third,half,two_third+}）：至少含 `{call,weight}`、`{fold,weight}`、`{raise,size_tag,weight}`。
+
+---
+## 生产级策略表出货门槛（Checklist）
+- Schema 完整：NPZ 至少包含 `node_keys/actions/weights/size_tags/meta/table_meta`；`meta.node_key_components` 含 `street/pot_type/role/pos/texture/spr/bucket/facing`。
+- 键一致性：`tests/test_end_to_end_pipeline.py::test_offline_runtime_key_consistency_sample` 通过（运行时/离线键一致，含 facing）。
+- 覆盖达标：`tools.policy_coverage_audit --strict` 报告 `coverage_ratio ≥ 0.95`（quick 可降阈）；缺失组合 TopN 已列出。
+- 可复现：同一 seed/代码版本下导出内容一致（时间戳除外或使用 `--deterministic-time`）。
+- 动作合法：每节点 `weights ≥ 0, sum=1（±ε）`；面对下注节点至少含 `call/fold/raise`；未下注节点含 `bet/check`。
+- 版本与可追溯：`table_meta` 暴露 `generated_at/solver_backend/seed/tree_hash/source_solution`；配合 `configs/policy_manifest.yaml` 管理版本与灰度。
 - 一致性：离线 `node_key` 与运行时 `node_key_from_observation` 完全一致；NPZ `meta.node_key_components` 含 facing。
 - 可复现：同一 seed 下导出产物字节级一致；审计覆盖率通过 G7。
 ---

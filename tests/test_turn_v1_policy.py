@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from poker_core.domain.actions import LegalAction
 from poker_core.suggest.service import build_suggestion
 
@@ -46,6 +47,13 @@ class _GS:
         self.last_bet = last_bet
 
 
+@pytest.fixture(autouse=True)
+def set_policy_version_env(monkeypatch):
+    """确保所有测试都使用 v1 策略版本"""
+    monkeypatch.setenv("SUGGEST_POLICY_VERSION", "v1")
+    monkeypatch.setenv("SUGGEST_V1_ROLLOUT_PCT", "0")
+
+
 def _set_env(monkeypatch):
     monkeypatch.setenv("SUGGEST_POLICY_VERSION", "v1")
     monkeypatch.setenv("SUGGEST_V1_ROLLOUT_PCT", "0")
@@ -61,7 +69,6 @@ def _patch_acts(monkeypatch, acts):
 
 
 def test_turn_nobet_uses_rules_or_fallback(monkeypatch):
-    _set_env(monkeypatch)
     acts = [LegalAction("bet", min=50, max=1000), LegalAction("check")]
     _patch_acts(monkeypatch, acts)
     gs = _GS(to_act=0)
@@ -74,7 +81,6 @@ def test_turn_nobet_uses_rules_or_fallback(monkeypatch):
 
 
 def test_turn_facing_bet_exposes_mdf(monkeypatch):
-    _set_env(monkeypatch)
     # to_call=100, pot_now=300 → pot_odds=0.25 → mdf=0.75
     acts = [LegalAction("call", to_call=100), LegalAction("fold")]
     _patch_acts(monkeypatch, acts)
