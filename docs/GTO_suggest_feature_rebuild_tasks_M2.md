@@ -143,7 +143,7 @@
   2. 结合 G7 计划实现 `policy_coverage_audit`，对 `street,pot_type,role,pos,texture,spr,facing` 维度做静态覆盖扫描。
   3. 预研面向多档防守尺寸的策略表（保留 `two_third_plus` 别名），为策略升级留好接口。
 
-##### G5 开发者清单（Actionable）
+##### G5 开发者清单（Actionable） ✅
 - 代码修改
   - `packages/poker_core/suggest/node_key.py`
     - 对非 preflop 且 `to_call>0` 的 Observation，在 `spr=` 段后、`hand=` 前追加 `facing={obs.facing_size_tag or 'na'}`；
@@ -175,6 +175,7 @@
   - `resp.debug.meta` 含 `attempted_keys` 与 `policy_fallback`；日志可还原回退路径。
 
 — 完成影响：运行时可直接命中“含 facing 维度”的策略节点，降低回退比例，提升 G7 覆盖审计与 G6 评测质量。
+（状态：已完成 ✅）
 
 #### 任务 G6：小矩阵 LP 降阶求解引擎（2×2 解析 + ≤5×5 精简）
 - 先写的测试

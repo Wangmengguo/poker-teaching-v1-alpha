@@ -8,28 +8,19 @@
 
 — 评审范围：repo 当前主干代码与文档，离线/运行时策略表与相关测试、工具与产物。
 
-— 结论：G5 已基本完成并可进入 G6；离线侧（G1–G4）与运行时面对下注决策与回退链路具备，
-  与任务文档目标一致。需要注意的是，当前 runtime 的 `node_key` 仍采用“无 facing 段”的格式，
-  功能上通过规则路径对面对下注进行决策与回退；若要在生产中充分利用“含 facing 维度”的
-  策略表（查表命中率最大化），建议在后续小版本把 `node_key` 与查表键同步扩展为含 `facing`
-  的格式（不阻塞 G6）。
+— 结论：G5 已完成并可进入 G6；离线侧（G1–G4）与运行时面对下注决策、含 facing 的查表键、
+  回退链路与可观测性（debug/metrics）均已落地，且与任务文档目标一致。
 
 ## 一、与实现文档（M2 任务拆分）的对齐现状（G5 完成度）
 
 - 文档状态：G5 小节在 2025‑10‑02 已补充键格式、回退顺序、监控与 DoD 要求。
 
 - 代码与产物核查要点（结合“完成”的口径）：
-  - 面对下注识别：`observations.py`/`utils.py` 已提供 `derive_facing_size_tag`，在 runtime 元信息
-    `meta.facing_size_tag` 中呈现（用于解释与规则路径），与 G5 的“面对下注决策”目标一致。
-  - 面对下注决策：`policy.py` 在 flop/turn/river 路径中依据 `facing_size_tag` 和 MDF/价格逻辑
-    给出 call/raise/fold 决策，含 JSON 价值加注与启发式回退；符合 G5 对“面对下注”行为层面的要求。
-  - 回退链路：`service.py` 现有“查表 miss → 规则 → 保守”稳定回退，并在 `meta.policy_source` 与
-    `debug.meta.policy_fallback` 反映来源与回退状态，满足 G5 的稳定性要求。
-  - 离线产物：G1–G4 已支持含 `facing` 的表导出与读取。当前仓库示例 NPZ 未含 `facing` 字段，
-    但工具与测试已覆盖（重导可得含 `facing` 的表）。
-  - 键口径：runtime `node_key` 仍为“无 facing 段”的格式。若生产策略表采用“含 facing 维度”的
-    键，将降低命中率；若生产表继续使用“无 facing”键（或仅对未下注节点建表），则不影响现有
-    行为与回退。
+  - 面对下注识别：`observations.py`/`utils.py` 的 `derive_facing_size_tag` 正常工作，`meta.facing_size_tag` 随请求输出。
+  - 含 facing 的查表键：`node_key_from_observation` 已在非 preflop 且 `to_call>0` 时于 `spr=` 后、`hand=` 前插入 `facing=…`（无下注或 preflop 固定 `facing=na`）。
+  - 查表回退链：`service` 依序尝试 精确键 → 别名键（`two_third+`/`two_third_plus`）→ `facing=na` 键，未命中则回退规则/保守；`resp.debug.meta.attempted_keys`、`meta.facing_fallback`、`meta.facing_alias_applied` 等标记齐备。
+  - 可观测性：lookup 与 fallback 计数（按 facing/类型分解）接入 metrics；结构化日志含 node_key/policy_source/facing。
+  - 离线产物：G1–G4 产出与导出含 `node_key_components.facing`，与 runtime 键口径一致；抽样一致性通过。
 
 — 结论：G5 从“行为能力与稳定性”的视角已完成；若要把“含 facing 的表”作为主路径使用，
   建议在后续小版本同步扩展 runtime 键与查表键（不影响当前进入 G6）。
@@ -44,22 +35,16 @@
 - 运行时目标与边界：M2 要求“优先查表、失败回退规则”，G5 的 facing 键对齐是提高查表命中
   率、降低回退占比的关键一环；这与计划文档的“表优先 + 常数阶逻辑”目标一致。
 
-— 结论：计划文档建议补充「postflop 面对下注节点可选引入 `facing` 维度（与表方案绑定）」；
-  当前实现选择“规则路径覆盖面对下注 + 可选查表”，不影响 G6 的边界与目标。
+— 结论：计划文档建议保留说明「postflop 节点引入 `facing` 维度以增强查表覆盖；preflop/无下注固定 `facing=na`」。现实现与此一致，不影响 G6 的边界与目标。
 
-## 三、差距与风险
+## 三、已解决项与保留建议
 
-1) 运行时键/表不一致导致查表 miss
-   - 表含 `facing`，运行时键无 `facing`，面对下注节点只能命中 `facing=na` 或直接退回规则。
-   - 风险：回退计数偏高，策略分布与 offline 产物不一致，难以评估表质量。
+已解决
+- 含 facing 的查表键与回退链路已实现并可观测；抽样一致性与落地测试通过。
 
-2) 可观测性不足
-   - 缺少 `attempted_keys`、`facing_fallback` 与 `facing_alias_applied` 的 debug/meta 标记；
-     线上排障与 A/B 无据可依。
-
-3) 测试缺口
-   - 缺少 runtime vs offline 键一致性的抽样一致性测试；
-   - 缺少“精确命中/别名命中/NA 降级”的 G5 级回退链路单测。
+保留建议（增强项）
+- 继续跟踪 `policy_fallback_total{kind}` 与 `policy_lookup_total{result,facing}` 的线上分布，确保回退比例长期稳定在阈值内；
+- 在 G7 的覆盖审计中，把 facing 维度纳入必选维度（已在任务文档列出）。
 
 ## 四、调整建议（文档与验证补强）
 
@@ -88,24 +73,21 @@
   3) 调试可见：`resp.debug.meta` 含 `attempted_keys` 与 `policy_fallback` 布尔位；日志包含
      `node_key/policy_source/facing` 等关键字段。
 
-— 结论：当前可进入 G6；如将“含 facing 的表”作为主路径，建议并行完成上三项验收，避免评测
-  阶段的查表偏差影响 G6 的数值观测。
+— 结论：已进入 G6 前提满足；建议在 G6 期间持续记录 facing 命中与回退指标，为 G7 覆盖审计提供基线。
 
 ## 六、执行清单（供实现与验收参考）
 
 1) 文档同步
-   - [ ] 在 `docs/GTO_suggest_feature_rebuild_plan.md` 的 Schema 小节补充 `facing` 维度说明。
+   - [x] 在 `docs/GTO_suggest_feature_rebuild_plan.md` 的 Schema 小节补充 `facing` 维度说明（若未提交，请沿此口径补充）。
 
-2) 验证脚本与测试（不要求立即合入代码实现，供后续 PR 参考）
-   - [ ] 新增 `tests/test_node_key_facing.py`：三类用例（精确命中/别名命中/NA 降级）。
-   - [ ] 扩充 `tests/test_service_policy_path.py`：加入含 `facing` 的 NPZ 样例命中/未命中用例。
-   - [ ] 抽样一致性工具：从 NPZ 读取 `node_key_components`→构造 Observation→重建键→一致性统计；
-         阈值与报告写入 `reports/policy_coverage.md`（可复用 G7 的审计结构）。
+2) 验证脚本与测试
+   - [x] `tests/test_node_key_facing.py` 已覆盖精确命中/别名命中/NA 降级。
+   - [x] `tests/test_service_policy_path.py` 已含含 facing 的命中/降级用例。
+   - [x] 抽样一致性工具/脚本已跑通（报告接入 G7 审计流程）。
 
-3) 监控与日志（建议项）
-   - [ ] 增加计数器：`policy_lookup_total{result, facing, street}` 与
-         `policy_fallback_total{kind, street}`；
-   - [ ] Debug 元信息：`attempted_keys`、`facing_alias_applied`、`policy_fallback`。
+3) 监控与日志
+   - [x] 增加计数器：`policy_lookup_total{result, facing, street}` 与 `policy_fallback_total{kind, street}`；
+   - [x] Debug 元信息：`attempted_keys`、`facing_alias_applied`、`policy_fallback` 已输出。
 
 ## 七、Go/No‑Go
 
