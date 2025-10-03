@@ -178,32 +178,50 @@
 （状态：已完成 ✅）
 
 #### 任务 G6：小矩阵 LP 降阶求解引擎（2×2 解析 + ≤5×5 精简）
+
+【决策锁定（2025‑10‑03） — Eval 批准】
+- 触发门槛：`max(rows, cols) ≤ 5` 时启用“小矩阵路径”。
+- 劣汰导出：对被严格劣势/重复的行列进行“0 权重回填”，导出仍保留全量动作集；提供 `meta.original_index_map`。
+- CLI 语义：`--small-engine` 优先级高于 `--backend`；`on` 强制启用小引擎（若满足维度门槛），`off` 禁用，`auto` 满足门槛则优先小引擎，否则按 `backend`。
 - 先写的测试
   - `tests/test_small_matrix_lp.py`
     - `test_2x2_analytic_matches_linprog()`：构造 2×2 零和矩阵（如 [[3,0],[5,1]]），断言解析解与 linprog 解在策略与游戏值上差异 ≤ 1e-8（策略）/≤ 1e-9（值）。
     - `test_3x3_strict_domination_reduction_value_close()`：构造 3×3 含严格劣势行/列的矩阵，先行劣汰再求解，与 linprog 完整求解的值差异 ≤ 1e-7。
     - `test_duplicate_rows_cols_coalesce()`：重复行/列合并后求解不变（策略支持集稳定，值一致）。
     - `test_degenerate_ties_lexicographic_tiebreak()`：退化分母接近 0 或完全平局矩阵，采用词典序决策保持稳定，且回退到 linprog 时仍满足公差。
-    - `test_auto_switch_and_meta_flag()`：通过 `solve_lp(..., backend="auto", seed=...)` 触发小矩阵路径（行列≤5），断言 `result["backend"] in {"small","highs","linprog"}` 且 `result["meta"]["small_engine_used"] == True`。
+    - `test_auto_switch_and_meta_flag()`：通过 `solve_lp(..., backend="auto", seed=...)` 在 `max(rows, cols) ≤ 5` 时触发小矩阵路径，断言 `result["backend"] in {"small","highs","linprog"}` 且 `result["meta"]["small_engine_used"] == True`。
     - `test_uniform_zero_payoff_returns_uniform_or_tie_rule()`：全 0 矩阵返回均匀混合或文档规定的稳定打破策略，并与 linprog 值一致（=0）。
+    - `test_rectangular_small_matrices_supported()`：覆盖 1×5、5×1、2×5、5×2 等长条矩阵；满足 `max(rows, cols) ≤ 5` 时走小引擎，验证值与 linprog 一致、`method` 标记正确。
+    - `test_cli_precedence_small_engine_over_backend()`：当 `--small-engine on` 且满足门槛、`--backend linprog` 时，仍应走小引擎；当 `--small-engine off` 时一律禁用小引擎。
+    - `test_export_fillback_zero_weights_and_index_map()`：对含劣汰的矩阵，验证导出的策略节点包含完整动作集、被劣汰动作权重为 0，且存在 `meta.original_index_map` 与 `meta.reduced_shape`。
 - 实现要点
   - 在 `tools/solve_lp.py` 实现：
     - `_solve_small_matrix(payoff) -> (p_row, value, q_col, meta)`：
       - 2×2 解析解：对 `[[a,b],[c,d]]` 使用闭式解；若分母 |a-b-c+d| < eps → 退化处理与 linprog 回退。
-      - ≤5×5：先行严格劣势/重复行列劣汰（阈值 `eps=1e-9`），若精简后为 2×2 走解析解，否则用 `linprog` 快速解但纳入 `small` 路径并写 `meta.reduced_shape`、`meta.domination_steps`。
+      - ≤5×5（含长条矩阵）：先行严格劣势/重复行列劣汰（阈值 `EPS=1e-9`），若精简后为 2×2 走解析解，否则用 `linprog` 快速解但仍归类为 `small`，并写 `meta.reduced_shape`、`meta.domination_steps`。
       - 返回对偶（列）策略 `q_col` 与 `value`。
-    - `solve_lp(..., backend="auto")`：当根节点矩阵 `rows*cols ≤ 25` 触发小矩阵路径；否则维持现有 HiGHS→linprog 逻辑。新增 CLI 选项：`--small-engine {auto,on,off} --small-max-dim 5`。
+    - `solve_lp(..., backend="auto")`：当根节点矩阵满足 `max(rows, cols) ≤ --small-max-dim`（默认 5）时触发小矩阵路径；否则维持现有 HiGHS→linprog 逻辑。新增/维持 CLI 选项：`--small-engine {auto,on,off} --small-max-dim 5`（小引擎优先级高于 backend）。
+    - 数值常量统一：新增 `tools/numerics.py` 暴露 `EPS=1e-9`、`EPS_DENOM=1e-12` 等；`solve_lp` 与 `export_policy` 复用，保证数值裁剪与归一化一致。
   - 输出元信息：`meta.small_engine_used=true/false`、`meta.method={analytic|reduced|linprog_small}`、`meta.reduced_shape=(r,c)`、`meta.domination_steps=int`。
   - 稳定性：对解析分母接近 0 的情形设置阈值与回退；对输出策略使用 `_normalize_vector`，并将极小负值截断为 0 再归一化。
+  - 劣汰“回填导出”：`tools/export_policy.py` 在接收小引擎/劣汰结果后，按原始动作枚举回填被劣汰行/列为 0 权重；同时在节点 `meta` 写入：
+    - `original_index_map`: 列表（长度=保留动作数），记录“保留动作在原始动作列表中的索引”。
+    - `original_action_count_pre_reduction`: 原动作总数；`reduced_shape`: `(r,c)`；`domination_steps`: 劣汰步数。
+    - 运行时查表与审计工具基于“完整动作集”工作；被劣汰动作权重恒为 0。
 - 交付物
   - 小矩阵引擎实现（含解析/劣汰/回退）、`solve_lp` 集成与 CLI 参数、对应单测。
+  - `tools/numerics.py`（统一数值阈值）、导出器“回填 0 权重 + original_index_map”能力。
 - 难度评估：系数 5/5（解析/劣汰与数值稳定、路径切换、元信息完整）。
 - 易错点排雷
-  - 解析解分母接近 0 的退化情形必须回退，以免策略爆炸；并在 `meta` 标记 `degenerate=true`。
-  - 劣汰阈值需与 linprog 公差一致（建议 1e-9），防止随机劣汰导致非一致结果。
+  - 解析解分母接近 0 的退化情形必须回退，以免策略爆炸；并在 `meta` 标记 `degenerate=true`（阈值来自 `tools/numerics.EPS_DENOM`）。
+  - 劣汰阈值需与 linprog 公差一致（统一使用 `tools/numerics.EPS`），防止随机劣汰导致非一致结果。
   - 统一种子不影响确定性；小矩阵路径不应引入随机性。
+  - 导出“回填 0 权重”必须保持动作顺序不变，避免运行时/审计动作枚举不一致。
 - DoD
-  - 全部单测通过；与 linprog/HiGHS 的值一致性达标；CLI 参数可用；`meta.small_engine_used` 与方法标记正确；默认 `auto` 模式在小矩阵下优先使用小引擎。
+  - 全部单测通过；与 linprog/HiGHS 的值一致性达标；CLI 参数可用；`meta.small_engine_used` 与方法标记正确；默认 `auto` 模式在 `max(rows, cols) ≤ 5` 时优先使用小引擎。
+  - `--small-engine` 开关优先级经测试验证：`on` 强制、`off` 禁用、`auto` 条件触发；当与 `--backend` 冲突时以小引擎为准（若满足门槛）。
+  - 导出表包含“回填 0 权重”的完整动作集，含 `meta.original_index_map`、`meta.reduced_shape`、`meta.domination_steps`；`tools.audit_policy_vs_rules` 与运行时查表在动作枚举上“零差异”。
+  - `tools/m2_smoke.py` 报告新增聚合：`small_engine_used=true` 的节点计数/占比，`method`/`reduced_shape` 分布样例。
 
 #### 任务 G7：端到端流水线验证与产物审计（覆盖率/一致性/可复现）
 - 先写的测试
