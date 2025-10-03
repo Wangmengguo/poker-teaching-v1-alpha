@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from poker_core.domain.actions import LegalAction
 from poker_core.suggest.service import build_suggestion
 
@@ -62,6 +63,13 @@ class _GS:
         self.last_bet = last_bet
 
 
+@pytest.fixture(autouse=True)
+def set_policy_version_env(monkeypatch):
+    """确保所有测试都使用 v1 策略版本"""
+    monkeypatch.setenv("SUGGEST_POLICY_VERSION", "v1")
+    monkeypatch.setenv("SUGGEST_V1_ROLLOUT_PCT", "0")
+
+
 def _set_env(monkeypatch):
     monkeypatch.setenv("SUGGEST_POLICY_VERSION", "v1")
     monkeypatch.setenv("SUGGEST_V1_ROLLOUT_PCT", "0")
@@ -83,7 +91,6 @@ def _assert_rulepath_has_spr(meta: dict):
 
 
 def test_turn_rulepath_uses_config_spr_keys(monkeypatch):
-    _set_env(monkeypatch)
     acts = [LegalAction("bet", min=50, max=1000), LegalAction("check")]
     _patch_acts(monkeypatch, acts)
     gs = _GS(street="turn", to_act=0)
@@ -93,7 +100,6 @@ def test_turn_rulepath_uses_config_spr_keys(monkeypatch):
 
 
 def test_river_rulepath_uses_config_spr_keys(monkeypatch):
-    _set_env(monkeypatch)
     acts = [LegalAction("bet", min=50, max=1000), LegalAction("check")]
     _patch_acts(monkeypatch, acts)
     gs = _GS(street="river", to_act=0)

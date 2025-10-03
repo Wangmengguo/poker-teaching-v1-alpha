@@ -21,6 +21,7 @@ from .context import SuggestContext
 from .decision import Decision
 from .explanations import render_explanations
 from .fallback import choose_conservative_line
+from .node_key import canonical_facing_tag
 from .node_key import node_key_from_observation
 from .policy import policy_flop_v1
 from .policy import policy_postflop_v0_3
@@ -29,7 +30,6 @@ from .policy import policy_preflop_v1
 from .policy import policy_river_v1
 from .policy import policy_turn_v1
 from .policy_loader import PolicyEntry
-from .policy_loader import PolicyLoaderError
 from .policy_loader import get_runtime_loader
 from .types import Observation
 from .types import PolicyConfig
@@ -37,6 +37,70 @@ from .utils import drop_nones
 from .utils import raise_to_amount
 from .utils import size_to_amount
 from .utils import stable_roll
+
+try:  # Prometheus 指标可选
+    from apps.web_django.api.metrics import inc_policy_fallback
+    from apps.web_django.api.metrics import inc_policy_lookup
+except Exception:  # pragma: no cover - metrics 模块缺失时降级为 no-op
+
+    def inc_policy_lookup(
+        result: str, street: str | None = None, facing: str | None = None
+    ) -> None:
+        return None
+
+    def inc_policy_fallback(
+        kind: str, street: str | None = None, facing: str | None = None
+    ) -> None:
+        return None
+
+
+FACING_ALIAS_MAP = {
+    "two_third+": ["two_third_plus"],
+    "two_third_plus": ["two_third+"],
+}
+
+
+def _replace_facing(node_key: str, new_tag: str) -> str:
+    parts = node_key.split("|")
+    for idx, part in enumerate(parts):
+        if part.startswith("facing="):
+            updated = parts.copy()
+            updated[idx] = f"facing={new_tag}"
+            return "|".join(updated)
+    # fallback：若键没有 facing 段，直接追加
+    return "|".join([node_key, f"facing={new_tag}"])
+
+
+def _extract_facing(node_key: str | None) -> str:
+    if not node_key:
+        return "na"
+    for part in node_key.split("|"):
+        if part.startswith("facing="):
+            return part.split("=", 1)[1] or "na"
+    return "na"
+
+
+def _candidate_keys(base_key: str | None, facing_tag: str) -> list[tuple[str, str]]:
+    if not base_key:
+        return []
+    seen: set[str] = set()
+    candidates: list[tuple[str, str]] = []
+
+    if base_key not in seen:
+        candidates.append(("exact", base_key))
+        seen.add(base_key)
+
+    for alias_tag in FACING_ALIAS_MAP.get(facing_tag, []):
+        alias_key = _replace_facing(base_key, alias_tag)
+        if alias_key not in seen:
+            candidates.append(("alias", alias_key))
+            seen.add(alias_key)
+
+    fallback_key = _replace_facing(base_key, "na")
+    if fallback_key not in seen:
+        candidates.append(("facing_na", fallback_key))
+
+    return candidates
 
 
 def _infer_amount_from_legal_actions(action: str | None, acts: list[LegalAction]) -> int | None:
@@ -204,8 +268,11 @@ def _frequency_pct_text(value: float) -> str:
 _POLICY_WEIGHT_EPS = 1e-6
 
 
-def _build_table_policy(entry: PolicyEntry, acts: list[LegalAction]):
+def _build_table_policy(
+    entry: PolicyEntry, acts: list[LegalAction], original_policy_name: str | None = None
+):
     if sum(entry.raw_weights) <= _POLICY_WEIGHT_EPS:
+        print(f"DEBUG: _build_table_policy returning None due to zero weights: {entry.raw_weights}")
         return None
     legal_actions = {a.action for a in acts}
     ranked: list[tuple[int, str, float]] = []
@@ -213,10 +280,14 @@ def _build_table_policy(entry: PolicyEntry, acts: list[LegalAction]):
         if action in legal_actions:
             ranked.append((idx, action, float(weight)))
     if not ranked:
+        print(
+            f"DEBUG: _build_table_policy returning None due to no ranked actions. legal_actions={legal_actions}, entry.actions={entry.actions}"
+        )
         return None
     ranked.sort(key=lambda item: item[2], reverse=True)
     top_idx, chosen_action, top_weight = ranked[0]
     if top_weight <= _POLICY_WEIGHT_EPS:
+        print(f"DEBUG: _build_table_policy returning None due to low top_weight: {top_weight}")
         return None
 
     size_tag: str | None = None
@@ -253,7 +324,8 @@ def _build_table_policy(entry: PolicyEntry, acts: list[LegalAction]):
     if size_tag:
         meta.setdefault("size_tag", size_tag)
 
-    policy_name = str(table_meta.get("policy_name") or f"{version}_table")
+    # 优先使用原始策略名称，如果不存在则使用策略表定义的名称
+    policy_name = original_policy_name or str(table_meta.get("policy_name") or f"{version}_table")
     meta.setdefault("policy_name", policy_name)
     rationale: list[dict[str, Any]] = []
     return suggested, rationale, policy_name, meta
@@ -461,65 +533,146 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
         policy_preflop_v0 if obs.street == "preflop" else policy_postflop_v0_3
     )
 
+    # 计算原始策略名称
+    raw_policy_name = getattr(policy_fn, "__name__", "unknown")
+    if raw_policy_name.startswith("policy_"):
+        original_policy_name = raw_policy_name[len("policy_") :]
+    else:
+        original_policy_name = raw_policy_name
+
     table_override: tuple[dict[str, Any], list[dict[str, Any]], str, dict[str, Any]] | None = None
     runtime_meta_hint: dict[str, Any] = {}
     debug_policy_fallback: bool | None = None
+
+    facing_tag = canonical_facing_tag(getattr(obs, "facing_size_tag", None))
+    facing_context = getattr(obs, "street", "").lower() in {"flop", "turn", "river"}
+    facing_context = facing_context and int(getattr(obs, "to_call", 0) or 0) > 0
+    facing_fallback_required = facing_context and facing_tag == "na"
+
     loader = get_runtime_loader()
     node_key_runtime: str | None = None
-    if loader is not None:
+    attempted_keys: list[str] = []
+    alias_applied = False
+    facing_fallback_hit = facing_fallback_required
+
+    if facing_fallback_required:
         try:
             node_key_runtime = node_key_from_observation(obs)
         except Exception:
             node_key_runtime = None
         if node_key_runtime:
+            attempted_keys.append(node_key_runtime)
+        runtime_meta_hint = {
+            "policy_source": "rule",
+            "policy_fallback": True,
+            "node_key": node_key_runtime,
+            "facing_fallback": True,
+        }
+        debug_policy_fallback = True
+        facing_fallback_hit = (
+            True  # Ensure facing_fallback_hit is set when facing fallback is required
+        )
+        inc_policy_lookup("skip", obs.street, facing_tag)
+        inc_policy_fallback("facing_na", obs.street, facing_tag)
+        loader = None
+
+    entry: PolicyEntry | None = None
+
+    if loader is not None:
+        try:
+            node_key_runtime = node_key_from_observation(obs)
+        except Exception:
+            node_key_runtime = None
+
+        candidates = _candidate_keys(node_key_runtime, facing_tag)
+        for kind, candidate in candidates:
+            attempted_keys.append(candidate)
+            # Debug: log candidate lookup
+            # print(f"DEBUG: Trying candidate: kind={kind}, candidate={candidate}")
             try:
-                entry = loader.lookup(node_key_runtime)
-            except PolicyLoaderError:
+                result = loader.lookup(candidate)
+            except Exception:
                 logging.getLogger(__name__).exception(
-                    "policy_table_lookup_failed", extra={"node_key": node_key_runtime}
+                    "policy_table_lookup_failed", extra={"node_key": candidate}
                 )
                 runtime_meta_hint = {
                     "policy_source": "rule",
                     "policy_fallback": True,
-                    "node_key": node_key_runtime,
+                    "node_key": candidate,
+                    "facing_fallback": kind != "exact",
                 }
                 debug_policy_fallback = True
+                inc_policy_lookup("error", obs.street, _extract_facing(candidate))
+                inc_policy_fallback("rule", obs.street, facing_tag)
+                break
+
+            if result is None:
+                inc_policy_lookup("miss", obs.street, _extract_facing(candidate))
+                continue
+
+            entry = result
+            alias_applied = kind == "alias"
+            # 只有当不是精确匹配且不是别名匹配时，才标记为 facing_fallback_hit
+            # 别名匹配虽然不是精确匹配，但仍然是成功的策略表查找
+            if kind not in ("exact", "alias"):
+                facing_fallback_hit = True
+            inc_policy_lookup("hit", obs.street, _extract_facing(candidate))
+            try:
+                table_override = _build_table_policy(entry, acts, original_policy_name)
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "policy_table_build_failed", extra={"node_key": entry.node_key}
+                )
+                runtime_meta_hint = {
+                    "policy_source": "rule",
+                    "policy_fallback": True,
+                    "node_key": entry.node_key,
+                    "policy_version": entry.table_meta.get("version"),
+                    "policy_hash": entry.table_meta.get("policy_hash"),
+                    "facing_fallback": kind != "exact",
+                }
+                debug_policy_fallback = True
+                inc_policy_fallback("rule", obs.street, facing_tag)
+                entry = None
             else:
-                if entry is None:
+                if table_override is None:
                     runtime_meta_hint = {
                         "policy_source": "rule",
                         "policy_fallback": True,
-                        "node_key": node_key_runtime,
+                        "node_key": entry.node_key,
+                        "policy_version": entry.table_meta.get("version"),
+                        "policy_hash": entry.table_meta.get("policy_hash"),
+                        "policy_distribution": entry.distribution(),
+                        "facing_fallback": kind != "exact",
                     }
                     debug_policy_fallback = True
+                    inc_policy_fallback("rule", obs.street, facing_tag)
+                    entry = None
+                    print(f"DEBUG: Set runtime_meta_hint for table_override=None, kind={kind}")
                 else:
-                    try:
-                        table_override = _build_table_policy(entry, acts)
-                    except Exception:
-                        logging.getLogger(__name__).exception(
-                            "policy_table_build_failed", extra={"node_key": entry.node_key}
-                        )
-                        runtime_meta_hint = {
-                            "policy_source": "rule",
-                            "policy_fallback": True,
-                            "node_key": entry.node_key,
-                            "policy_version": entry.table_meta.get("version"),
-                            "policy_hash": entry.table_meta.get("policy_hash"),
-                        }
-                        debug_policy_fallback = True
-                    else:
-                        if table_override is None:
-                            runtime_meta_hint = {
-                                "policy_source": "rule",
-                                "policy_fallback": True,
-                                "node_key": entry.node_key,
-                                "policy_version": entry.table_meta.get("version"),
-                                "policy_hash": entry.table_meta.get("policy_hash"),
-                                "policy_distribution": entry.distribution(),
-                            }
-                            debug_policy_fallback = True
-                        else:
-                            debug_policy_fallback = False
+                    debug_policy_fallback = False
+                    runtime_meta_hint = {}
+                    # Debug: log that we cleared runtime_meta_hint for successful policy lookup
+                    print(
+                        f"DEBUG: Cleared runtime_meta_hint for successful policy lookup, kind={kind}, table_override={table_override is not None}"
+                    )
+            if entry is not None or debug_policy_fallback:
+                break
+
+        if entry is None and not runtime_meta_hint:
+            # Debug: log when we set runtime_meta_hint for rule fallback
+            print(
+                f"DEBUG: Setting runtime_meta_hint for rule fallback: entry={entry}, runtime_meta_hint={runtime_meta_hint}"
+            )
+            runtime_meta_hint = {
+                "policy_source": "rule",
+                "policy_fallback": True,
+                "node_key": node_key_runtime,
+                "facing_fallback": True,
+            }
+            debug_policy_fallback = True
+            inc_policy_lookup("miss", obs.street, facing_tag)
+            inc_policy_fallback("rule", obs.street, facing_tag)
 
     # 执行策略
     cfg = cfg or PolicyConfig()
@@ -527,7 +680,11 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
     rationale: list[dict[str, Any]] = []
     meta_from_policy: dict[str, Any] = {}
     decision_obj: Decision | None = None
-    policy_name = getattr(policy_fn, "__name__", "unknown")
+    raw_policy_name = getattr(policy_fn, "__name__", "unknown")
+    if raw_policy_name.startswith("policy_"):
+        policy_name = raw_policy_name[len("policy_") :]
+    else:
+        policy_name = raw_policy_name
     fallback_used = False
     fallback_meta: dict[str, Any] = {}
     fallback_rationale: list[dict[str, Any]] = []
@@ -542,9 +699,18 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
         if reason:
             fallback_meta.setdefault("fallback_reason", reason)
         meta_from_policy = dict(fallback_meta)
+        inc_policy_fallback("conservative", obs.street, facing_tag)
 
     if table_override is not None:
         suggested, rationale, policy_name, meta_from_policy = table_override
+        if alias_applied:
+            meta_from_policy = dict(meta_from_policy or {})
+            meta_from_policy["facing_alias_applied"] = True
+        # 别名匹配虽然成功，但仍然不是精确匹配，应该标记为 facing_fallback
+        # 但不应该因此而回退到规则策略，除非真的查找失败
+        if facing_fallback_hit or alias_applied:
+            meta_from_policy = dict(meta_from_policy or {})
+            meta_from_policy.setdefault("facing_fallback", True)
     else:
         try:
             out = policy_fn(obs, cfg)
@@ -703,6 +869,13 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
     meta_dict.setdefault("policy_source", _policy_source_flag())
     meta_dict.setdefault("baseline", "GTO")
     meta_dict.setdefault("mode", "GTO")
+    meta_dict.setdefault("facing_size_tag", facing_tag)
+    if facing_fallback_hit:
+        meta_dict["facing_fallback"] = True
+    elif "facing_fallback" in meta_dict and not meta_dict["facing_fallback"]:
+        meta_dict.pop("facing_fallback", None)
+    if alias_applied:
+        meta_dict["facing_alias_applied"] = True
     street = str(getattr(obs, "street", "") or "").strip().lower()
     size_val = meta_dict.get("size_tag")
     if isinstance(size_val, str):
@@ -822,7 +995,7 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
             "role": getattr(obs, "role", "na"),
             "range_adv": getattr(obs, "range_adv", False),
             "nut_adv": getattr(obs, "nut_adv", False),
-            "facing_size_tag": getattr(obs, "facing_size_tag", "na"),
+            "facing_size_tag": facing_tag,
             "rule_path": (resp.get("meta") or {}).get("rule_path"),
         }
         mix_debug = (resp.get("meta") or {}).get("mix")
@@ -831,6 +1004,12 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
         node_key = (resp.get("meta") or {}).get("node_key")
         if node_key is not None:
             debug_meta["node_key"] = node_key
+        if (resp.get("meta") or {}).get("facing_fallback"):
+            debug_meta["facing_fallback"] = True
+        if attempted_keys:
+            debug_meta["attempted_keys"] = attempted_keys
+        if alias_applied:
+            debug_meta["facing_alias_applied"] = True
         resp["debug"] = {"meta": debug_meta}
 
     # Structured log for v1 (or when debug enabled), including profile
@@ -886,6 +1065,9 @@ def build_suggestion(gs, actor: int, cfg: PolicyConfig | None = None) -> dict[st
         dbg = resp.setdefault("debug", {})
         dbg_meta = dbg.setdefault("meta", {})
         dbg_meta["policy_fallback"] = bool(debug_meta_flag)
+        # Also set facing_fallback if present in meta
+        if meta_clean and "facing_fallback" in meta_clean:
+            dbg_meta["facing_fallback"] = bool(meta_clean.get("facing_fallback"))
 
     # Optional: render natural-language explanations for teaching UI
     try:

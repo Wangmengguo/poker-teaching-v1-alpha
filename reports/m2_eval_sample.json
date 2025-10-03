@@ -1,0 +1,8 @@
+{
+  "policy_nodes": {
+    "preflop": 1,
+    "postflop": 2
+  },
+  "solver_backend": "linprog",
+  "quick_mode": true
+}

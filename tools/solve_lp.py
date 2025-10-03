@@ -10,6 +10,7 @@ metadata in the emitted JSON payload.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib
 import json
 import math
@@ -37,6 +38,7 @@ class _MatrixGame:
     hero_actions: list[str]
     villain_actions: list[str]
     payoff: np.ndarray
+    hero_metadata: Mapping[str, Any]
 
 
 class _BackendUnavailable(Exception):
@@ -68,6 +70,7 @@ def _lookup_leaf_value(
     hero_action: str,
     villain_action: str,
 ) -> float:
+    # First try to find the value in leaf_ev
     if leaf_id is not None and leaf_id in leaf_ev:
         value = leaf_ev[leaf_id]
     else:
@@ -75,6 +78,19 @@ def _lookup_leaf_value(
         if key in leaf_ev:
             value = leaf_ev[key]
         else:
+            # Handle terminal nodes with fixed payoffs
+            if isinstance(leaf_id, str):
+                if leaf_id == "terminal_fold_pre":
+                    return -50.0  # Hero folds preflop, loses SB
+                elif leaf_id == "terminal_win_pre":
+                    return 50.0  # Hero wins preflop, wins SB
+                elif leaf_id == "terminal_fold_post":
+                    return -100.0  # Hero folds postflop, loses current pot
+                elif leaf_id == "terminal_showdown":
+                    return 0.0  # Showdown - use neutral EV for now
+                elif leaf_id == "terminal_allin":
+                    return 0.0  # All-in - use neutral EV for now
+
             raise LPSolverError(
                 f"Missing payoff for leaf {leaf_id!r} (hero={hero_action}, villain={villain_action})"
             )
@@ -98,7 +114,10 @@ def _build_matrix_game(tree: Mapping[str, Any], leaf_ev: Mapping[Any, Any]) -> _
     node_map: dict[str, Mapping[str, Any]] = {}
     for raw in nodes:
         raw_map = _ensure_mapping(raw, "node")
+        # Accept both "id" (preferred) and legacy "node_id" from build_tree artifact
         node_id = raw_map.get("id")
+        if node_id is None:
+            node_id = raw_map.get("node_id")
         if not isinstance(node_id, str):
             raise LPSolverError("Each node must include string id")
         if node_id in node_map:
@@ -107,7 +126,9 @@ def _build_matrix_game(tree: Mapping[str, Any], leaf_ev: Mapping[Any, Any]) -> _
 
     root_id = tree_map.get("root")
     if root_id is None:
-        root_id = nodes[0].get("id")
+        # Fallback to the first node's id, supporting both schemas
+        first = _ensure_mapping(nodes[0], "node")
+        root_id = first.get("id") or first.get("node_id")
     if not isinstance(root_id, str):
         raise LPSolverError("tree must define root node id")
     if root_id not in node_map:
@@ -133,32 +154,47 @@ def _build_matrix_game(tree: Mapping[str, Any], leaf_ev: Mapping[Any, Any]) -> _
         if next_id not in node_map:
             raise LPSolverError(f"Hero action '{action_name}' references unknown node '{next_id}'")
         villain_node = node_map[next_id]
-        villain_raw = _ensure_sequence(
-            villain_node.get("actions"), f"villain actions for {next_id}"
-        )
-        row: list[float] = []
-        current_villain_names: list[str] = []
-        for villain_action in villain_raw:
-            villain_map = _ensure_mapping(villain_action, "villain action")
-            villain_name = villain_map.get("name")
-            if not isinstance(villain_name, str):
-                raise LPSolverError(f"Villain action missing name in node {next_id}")
-            if "leaf" in villain_map:
-                leaf_id = villain_map["leaf"]
-            elif "terminal" in villain_map:
-                leaf_id = villain_map["terminal"]
-            else:
-                leaf_id = None
+
+        # Check if this is a terminal node (no actions needed)
+        street = villain_node.get("street", "")
+        if street == "terminal":
+            # Terminal nodes have no actions - lookup payoff directly
+            villain_raw = []
             payoff = _lookup_leaf_value(
                 leaf_map,
-                leaf_id=leaf_id,
+                leaf_id=next_id,  # Use terminal node ID as leaf ID
                 hero_action=action_name,
-                villain_action=villain_name,
+                villain_action="terminal",
             )
-            row.append(payoff)
-            current_villain_names.append(villain_name)
-        if not row:
-            raise LPSolverError(f"Villain node '{next_id}' must include actions")
+            row = [payoff]
+            current_villain_names = ["terminal"]
+        else:
+            villain_raw = _ensure_sequence(
+                villain_node.get("actions"), f"villain actions for {next_id}"
+            )
+            row: list[float] = []
+            current_villain_names: list[str] = []
+            for villain_action in villain_raw:
+                villain_map = _ensure_mapping(villain_action, "villain action")
+                villain_name = villain_map.get("name")
+                if not isinstance(villain_name, str):
+                    raise LPSolverError(f"Villain action missing name in node {next_id}")
+                if "leaf" in villain_map:
+                    leaf_id = villain_map["leaf"]
+                elif "terminal" in villain_map:
+                    leaf_id = villain_map["terminal"]
+                else:
+                    leaf_id = None
+                payoff = _lookup_leaf_value(
+                    leaf_map,
+                    leaf_id=leaf_id,
+                    hero_action=action_name,
+                    villain_action=villain_name,
+                )
+                row.append(payoff)
+                current_villain_names.append(villain_name)
+            if not row:
+                raise LPSolverError(f"Villain node '{next_id}' must include actions")
         if villain_actions is None:
             villain_actions = current_villain_names
         else:
@@ -180,7 +216,141 @@ def _build_matrix_game(tree: Mapping[str, Any], leaf_ev: Mapping[Any, Any]) -> _
     if not np.all(np.isfinite(matrix)):
         raise LPSolverError("Payoff matrix contains non-finite values")
 
-    return _MatrixGame(hero_actions=hero_actions, villain_actions=villain_actions, payoff=matrix)
+    return _MatrixGame(
+        hero_actions=hero_actions,
+        villain_actions=villain_actions,
+        payoff=matrix,
+        hero_metadata=root,
+    )
+
+
+def _canonicalize(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _canonicalize(val)
+            for key, val in sorted(value.items(), key=lambda item: str(item[0]))
+        }
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return [_canonicalize(item) for item in value]
+    return value
+
+
+def _compute_tree_hash(tree: Mapping[str, Any]) -> str:
+    canonical = json.dumps(_canonicalize(tree), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+def _extract_component(source: Mapping[str, Any], key: str, default: Any) -> Any:
+    if key in source:
+        return source[key]
+    components = source.get("components")
+    if isinstance(components, Mapping) and key in components:
+        return components[key]
+    return default
+
+
+def _coerce_float(value: Any) -> float:
+    try:
+        number = float(value)
+    except Exception:
+        return 0.0
+    if not math.isfinite(number) or number < 0.0:
+        return 0.0
+    return number
+
+
+def _normalise_policy_node(
+    raw: Mapping[str, Any],
+    *,
+    default_weights: Mapping[str, float] | None = None,
+) -> dict[str, Any] | None:
+    node_key = raw.get("node_key")
+    if not isinstance(node_key, str) or not node_key:
+        return None
+
+    street = str(_extract_component(raw, "street", "unknown"))
+    pot_type = str(_extract_component(raw, "pot_type", "single_raised"))
+    role = _extract_component(raw, "role", "pfr")
+    pos = _extract_component(raw, "pos", "ip")
+    texture = str(_extract_component(raw, "texture", "na"))
+    spr = str(_extract_component(raw, "spr", "mid"))
+    bucket_raw = _extract_component(raw, "bucket", 0)
+    try:
+        bucket = int(bucket_raw)
+    except Exception:
+        bucket = bucket_raw
+
+    actions_raw = raw.get("actions")
+    if not isinstance(actions_raw, Sequence):
+        return None
+
+    actions: list[dict[str, Any]] = []
+    weights: list[float] = []
+    for entry in actions_raw:
+        if not isinstance(entry, Mapping):
+            continue
+        action_name = entry.get("action")
+        if not isinstance(action_name, str) or not action_name:
+            continue
+        weight_value: Any
+        if "weight" in entry:
+            weight_value = entry.get("weight")
+        elif default_weights is not None and action_name in default_weights:
+            weight_value = default_weights[action_name]
+        else:
+            weight_value = 0.0
+        weight = _coerce_float(weight_value)
+        actions.append(
+            {
+                "action": action_name,
+                "size_tag": entry.get("size_tag"),
+                "weight": weight,
+            }
+        )
+        weights.append(weight)
+
+    if not actions:
+        return None
+
+    normalised = _normalize_vector(np.array(weights, dtype=np.float64))
+    for idx, value in enumerate(normalised):
+        actions[idx]["weight"] = float(value)
+
+    return {
+        "node_key": node_key,
+        "street": street,
+        "pot_type": pot_type,
+        "role": role,
+        "pos": pos,
+        "texture": texture,
+        "spr": spr,
+        "bucket": bucket,
+        "actions": actions,
+    }
+
+
+def _build_policy_nodes(
+    tree: Mapping[str, Any],
+    hero_node: Mapping[str, Any],
+    hero_strategy: Mapping[str, float],
+) -> list[dict[str, Any]]:
+    nodes: list[dict[str, Any]] = []
+
+    policy_meta = hero_node.get("policy") if isinstance(hero_node, Mapping) else None
+    if isinstance(policy_meta, Mapping):
+        hero_node_payload = _normalise_policy_node(policy_meta, default_weights=hero_strategy)
+        if hero_node_payload:
+            nodes.append(hero_node_payload)
+
+    extra_nodes = tree.get("policy_nodes")
+    if isinstance(extra_nodes, Sequence):
+        for raw in extra_nodes:
+            if isinstance(raw, Mapping):
+                node = _normalise_policy_node(raw)
+                if node:
+                    nodes.append(node)
+
+    return nodes
 
 
 def _normalize_vector(values: np.ndarray) -> np.ndarray:
@@ -361,6 +531,8 @@ def solve_lp(
         for name, prob in zip(game.villain_actions, villain_restored, strict=False)
     }
 
+    nodes = _build_policy_nodes(tree, game.hero_metadata, hero_dict)
+
     meta = {
         "status": "optimal" if getattr(scipy_result, "success", False) else "failed",
         "message": getattr(scipy_result, "message", ""),
@@ -372,6 +544,10 @@ def solve_lp(
         "villain_actions": list(game.villain_actions),
         "warnings": list(errors),
     }
+    meta["solver_backend"] = selected
+    meta["tree_hash"] = _compute_tree_hash(tree)
+    meta["node_count"] = len(nodes)
+    meta["lp_value"] = float(value)
     meta.update(backend_meta)
     backend_warnings = backend_meta.get("warnings")
     if backend_warnings:
@@ -379,11 +555,11 @@ def solve_lp(
 
     ineqlin = getattr(scipy_result, "ineqlin", None)
     if ineqlin is not None:
-        meta["dual_residual"] = list(getattr(ineqlin, "residual", []))
-        meta["dual_marginals_raw"] = list(getattr(ineqlin, "marginals", []))
+        meta["dual_residual"] = [float(x) for x in getattr(ineqlin, "residual", [])]
+        meta["dual_marginals_raw"] = [float(x) for x in getattr(ineqlin, "marginals", [])]
     eqlin = getattr(scipy_result, "eqlin", None)
     if eqlin is not None:
-        meta["eq_marginals"] = list(getattr(eqlin, "marginals", []))
+        meta["eq_marginals"] = [float(x) for x in getattr(eqlin, "marginals", [])]
 
     return {
         "backend": selected,
@@ -391,6 +567,7 @@ def solve_lp(
         "strategy": hero_dict,
         "dual_prices": villain_dict,
         "meta": meta,
+        "nodes": nodes,
     }
 
 
@@ -462,7 +639,33 @@ def _load_leaf_ev(path: Path) -> Mapping[Any, Any]:
             raise LPSolverError(f"Failed to load leaf EV NPZ {path}: {exc}") from exc
     data = _load_json(path)
     if isinstance(data, Mapping):
-        return data
+        # Allow JSON-friendly pair keys like "bet|fold" or "bet,fold" as a
+        # convenience for CLI usage where tuple keys cannot be expressed.
+        normalized: dict[Any, float] = {}
+        for raw_key, raw_val in data.items():
+            try:
+                val_f = float(raw_val)
+            except Exception as exc:  # pragma: no cover - defensive
+                raise LPSolverError(
+                    f"Leaf EV mapping contains non-numeric value for key {raw_key!r}: {raw_val!r}"
+                ) from exc
+
+            key: Any = raw_key
+            if isinstance(raw_key, str):
+                if "|" in raw_key:
+                    a, b = raw_key.split("|", 1)
+                    key = (a.strip(), b.strip())
+                elif "," in raw_key:
+                    a, b = raw_key.split(",", 1)
+                    key = (a.strip(), b.strip())
+                elif "->" in raw_key:
+                    a, b = raw_key.split("->", 1)
+                    key = (a.strip(), b.strip())
+            elif isinstance(raw_key, (list, tuple)) and len(raw_key) == 2:
+                key = (str(raw_key[0]), str(raw_key[1]))
+
+            normalized[key] = val_f
+        return normalized
     if isinstance(data, Sequence):
         try:
             return {index: float(val) for index, val in enumerate(data)}

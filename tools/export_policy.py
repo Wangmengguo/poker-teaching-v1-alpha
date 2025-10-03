@@ -64,34 +64,36 @@ def _ensure_role(role: Any) -> str:
     return "role:na"
 
 
-def _extract_prefixed(parts: list[str], prefix: str, default: str) -> str:
+def _split_node_key(node_key: str) -> list[str]:
+    if "|" in node_key:
+        return node_key.split("|")
+    return node_key.split("/")
+
+
+def _extract_dimension(parts: list[str], key: str, default: str) -> str:
+    prefixes = (f"{key}:", f"{key}=")
     for part in parts:
-        if part.startswith(prefix):
-            return part.split(":", 1)[1] if ":" in part else default
+        for prefix in prefixes:
+            if part.startswith(prefix):
+                remainder = part[len(prefix) :]
+                return remainder or default
     return default
 
 
 def _build_components(raw: Mapping[str, Any], node_key: str) -> dict[str, Any]:
-    parts = node_key.split("/") if node_key else []
-    street = str(raw.get("street") or (parts[0] if len(parts) > 0 else "unknown"))
+    parts = _split_node_key(node_key) if node_key else []
+    street = str(raw.get("street") or (parts[0] if parts else "unknown"))
     pot_type = str(raw.get("pot_type") or (parts[1] if len(parts) > 1 else "single_raised"))
     role = _ensure_role(raw.get("role") or (parts[2] if len(parts) > 2 else "role:na"))
     pos = str(raw.get("pos") or (parts[3] if len(parts) > 3 else "na"))
-    texture = str(
-        raw.get("texture")
-        or _extract_prefixed(parts[4:5], "texture:", "na")
-        or _extract_prefixed(parts, "texture:", "na")
-    )
-    spr = str(
-        raw.get("spr")
-        or _extract_prefixed(parts[5:6], "spr:", "na")
-        or _extract_prefixed(parts, "spr:", "na")
-    )
+    texture = str(raw.get("texture") or _extract_dimension(parts, "texture", "na"))
+    spr = str(raw.get("spr") or _extract_dimension(parts, "spr", "na"))
+    facing_value = raw.get("facing")
+    if facing_value is None:
+        facing_value = _extract_dimension(parts, "facing", "na")
     bucket_value = raw.get("bucket")
     if bucket_value is None:
-        bucket_value = _extract_prefixed(parts[6:7], "bucket:", "-1") or _extract_prefixed(
-            parts, "bucket:", "-1"
-        )
+        bucket_value = _extract_dimension(parts, "bucket", "-1")
     return {
         "street": street,
         "pot_type": pot_type,
@@ -99,6 +101,7 @@ def _build_components(raw: Mapping[str, Any], node_key: str) -> dict[str, Any]:
         "pos": pos,
         "texture": texture,
         "spr": spr,
+        "facing": str(facing_value),
         "bucket": str(bucket_value),
     }
 
@@ -137,6 +140,31 @@ def _normalise_node(raw: Mapping[str, Any], *, index: int) -> dict[str, Any]:
 
     zero_weight_actions = [a for a, w in zip(actions, weights, strict=False) if w <= _EPS]
     components = _build_components(raw, node_key)
+    components_facing = str(components.get("facing") or "na")
+
+    raw_meta = raw.get("meta") if isinstance(raw.get("meta"), Mapping) else {}
+    meta_flags: dict[str, Any] = dict(raw_meta)
+
+    fallback_from_raw = meta_flags.get("fallback_from")
+    if isinstance(fallback_from_raw, list):
+        fallback_from = [str(item) for item in fallback_from_raw]
+    elif fallback_from_raw is None:
+        fallback_from = []
+    else:
+        fallback_from = [str(fallback_from_raw)]
+
+    facing_present = "facing" in raw and raw.get("facing") not in {None, ""}
+    if facing_present:
+        components["facing"] = str(raw.get("facing"))
+        meta_flags.setdefault("facing_fallback", False)
+    else:
+        if components_facing not in {"", "na"} and components_facing not in fallback_from:
+            fallback_from.append(components_facing)
+        components["facing"] = "na"
+        meta_flags["facing_fallback"] = True
+
+    meta_flags["fallback_from"] = fallback_from
+    meta_flags.setdefault("facing_fallback", False)
 
     return {
         "node_key": node_key,
@@ -145,6 +173,7 @@ def _normalise_node(raw: Mapping[str, Any], *, index: int) -> dict[str, Any]:
         "size_tags": size_tags,
         "weights": weights,
         "zero_weight_actions": zero_weight_actions,
+        "meta": meta_flags,
     }
 
 
@@ -182,6 +211,7 @@ def _write_npz(
                 "size_tags": node["size_tags"],
                 "weights": node["weights"],
                 "zero_weight_actions": node["zero_weight_actions"],
+                "node_meta": node.get("meta", {}),
             }
             for node in nodes
         ],

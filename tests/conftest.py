@@ -14,6 +14,10 @@ sys.path.insert(0, str(DJANGO_DIR))
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "web.settings")
 
+# 设置默认的策略版本环境变量
+os.environ.setdefault("SUGGEST_POLICY_VERSION", "v1")
+os.environ.setdefault("SUGGEST_V1_ROLLOUT_PCT", "0")
+
 try:
     import django
 
