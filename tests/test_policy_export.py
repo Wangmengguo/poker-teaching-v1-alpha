@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from tools import export_policy
 
@@ -135,3 +136,139 @@ def test_policy_export_handles_zero_weight_actions(tmp_path):
         for action in meta["zero_weight_actions"]:
             assert isinstance(action, str)
             assert action in meta["actions"]
+
+
+def test_export_fillback_zero_weights_and_index_map(tmp_path):
+    solution = {
+        "meta": {
+            "solver_backend": "small",
+            "seed": 42,
+            "tree_hash": "deadbeef",
+        },
+        "nodes": [
+            {
+                "node_key": "flop/single_raised/role:caller/oop/texture:dry/spr:mid/facing:half/bucket:1",
+                "street": "flop",
+                "pot_type": "single_raised",
+                "role": "caller",
+                "pos": "oop",
+                "texture": "dry",
+                "spr": "mid",
+                "facing": "half",
+                "bucket": 1,
+                "actions": [
+                    {"action": "call", "weight": 0.7},
+                    {"action": "fold", "weight": 0.3},
+                ],
+                "meta": {
+                    "original_actions": ["call", "fold", "raise"],
+                    "original_index_map": [0, 1],
+                    "original_action_count_pre_reduction": 3,
+                    "reduced_shape": [2, 2],
+                    "domination_steps": 2,
+                },
+            }
+        ],
+    }
+    out_dir = tmp_path / "out"
+    export_policy.export_from_solution(solution, out_dir=out_dir)
+
+    postflop = np.load(out_dir / "postflop.npz", allow_pickle=True)
+    meta = postflop["meta"][0]
+
+    assert meta["node_meta"]["original_index_map"] == [0, 1]
+    assert meta["node_meta"]["original_action_count_pre_reduction"] == 3
+    assert meta["node_meta"]["reduced_shape"] == [2, 2]
+    assert meta["node_meta"]["domination_steps"] == 2
+
+    actions = list(meta["actions"])
+    weights = list(meta["weights"])
+    assert actions == ["call", "fold", "raise"]
+    assert pytest.approx(weights[0] + weights[1] + weights[2], rel=1e-9, abs=1e-9) == 1.0
+    assert weights[2] == pytest.approx(0.0, abs=1e-9)
+    assert "raise" in meta["zero_weight_actions"]
+
+
+def test_export_remap_non_identity_order(tmp_path):
+    # Reduced actions are in a different order than the original actions.
+    # original_actions: [fold, call, raise]
+    # index_map: reduced positions -> original indices = [2, 0]
+    # reduced actions are ['raise', 'fold'] with weights [0.7, 0.3]
+    solution = {
+        "meta": {"solver_backend": "small"},
+        "nodes": [
+            {
+                "node_key": "flop/single_raised/role:caller/oop/texture:dry/spr:mid/facing:half/bucket:7",
+                "street": "flop",
+                "pot_type": "single_raised",
+                "role": "caller",
+                "pos": "oop",
+                "texture": "dry",
+                "spr": "mid",
+                "facing": "half",
+                "bucket": 7,
+                "actions": [
+                    {"action": "raise", "size_tag": "4x", "weight": 0.7},
+                    {"action": "fold", "weight": 0.3},
+                ],
+                "meta": {
+                    "original_actions": ["fold", "call", "raise"],
+                    "original_index_map": [2, 0],
+                },
+            }
+        ],
+    }
+    out_dir = tmp_path / "out2"
+    export_policy.export_from_solution(solution, out_dir=out_dir)
+
+    postflop = np.load(out_dir / "postflop.npz", allow_pickle=True)
+    meta = postflop["meta"][0]
+    actions = list(meta["actions"])
+    weights = list(meta["weights"])
+    size_tags = list(meta["size_tags"])
+    # Expect original order and correct remap of weights/sizes
+    assert actions == ["fold", "call", "raise"]
+    assert weights == pytest.approx([0.3, 0.0, 0.7], abs=1e-9)
+    assert size_tags == [None, None, "4x"]
+
+
+def test_export_remap_sparse_identity_order(tmp_path):
+    # Reduced actions keep original order but are sparse: kept [0, 2]
+    # original_actions: [fold, call, raise], index_map: [0, 2]
+    # reduced actions are ['fold', 'raise'] with weights [0.3, 0.7]
+    solution = {
+        "meta": {"solver_backend": "small"},
+        "nodes": [
+            {
+                "node_key": "flop/single_raised/role:caller/oop/texture:dry/spr:mid/facing:half/bucket:8",
+                "street": "flop",
+                "pot_type": "single_raised",
+                "role": "caller",
+                "pos": "oop",
+                "texture": "dry",
+                "spr": "mid",
+                "facing": "half",
+                "bucket": 8,
+                "actions": [
+                    {"action": "fold", "weight": 0.3},
+                    {"action": "raise", "size_tag": "3x", "weight": 0.7},
+                ],
+                "meta": {
+                    "original_actions": ["fold", "call", "raise"],
+                    "original_index_map": [0, 2],
+                },
+            }
+        ],
+    }
+    out_dir = tmp_path / "out3"
+    export_policy.export_from_solution(solution, out_dir=out_dir)
+
+    postflop = np.load(out_dir / "postflop.npz", allow_pickle=True)
+    meta = postflop["meta"][0]
+    actions = list(meta["actions"])
+    weights = list(meta["weights"])
+    size_tags = list(meta["size_tags"])
+    # Expect original order and zero for eliminated action
+    assert actions == ["fold", "call", "raise"]
+    assert weights == pytest.approx([0.3, 0.0, 0.7], abs=1e-9)
+    assert size_tags == [None, None, "3x"]

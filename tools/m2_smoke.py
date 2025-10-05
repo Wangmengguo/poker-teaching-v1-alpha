@@ -208,6 +208,31 @@ def run_smoke(
 
     report_lines.append(f"solver_backend={result.get('backend')} value={result.get('value'):.6f}")
 
+    meta = solution_dict.get("meta", {})
+    small_records = [
+        {
+            "used": bool(meta.get("small_engine_used")),
+            "method": meta.get("method"),
+            "reduced_shape": meta.get("reduced_shape"),
+        }
+    ]
+    total_runs = len(small_records)
+    used_count = sum(1 for record in small_records if record["used"])
+    ratio = used_count / total_runs if total_runs else 0.0
+    sample = next((record for record in small_records if record["used"]), small_records[0])
+    report_lines.append(f"small_engine_used_count={used_count}")
+    report_lines.append(f"small_engine_used_ratio={ratio:.2f}")
+    report_lines.append(
+        "small_methods_sample="
+        + json.dumps(
+            {
+                "method": sample.get("method", "na") or "na",
+                "reduced_shape": sample.get("reduced_shape"),
+            },
+            sort_keys=True,
+        )
+    )
+
     return True, report_lines
 
 

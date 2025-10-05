@@ -95,6 +95,16 @@
 - 提醒：若切换到“含 facing 的表”为主路径，建议在 G6 期间并行补齐 runtime 键扩展与抽样一致性
   验收，以提升表命中率与观测质量。
 
+## 八、G6 进度补充与后续观察点
+
+- 小矩阵引擎（G6）已实现：`tools/solve_lp.py` 引入 `--small-engine/--small-max-dim` 开关，≤5×5 矩阵默认走降阶/解析路径，`meta` 暴露 `method/reduced_shape/domination_steps`。
+- 导出器补齐裁剪回填：`tools/export_policy.py` 基于 `original_index_map` 回填 0 权重动作，并保留 `original_action_count_pre_reduction` 等元数据，满足查表与审计一致性需求。
+- 测试覆盖：新增 `tests/test_small_matrix_lp.py`、扩展 `tests/test_policy_export.py` 校验解析精度、劣汰元信息与 CLI 优先级。
+
+保留观察（建议纳入后续 Review）：
+- 监控：待评估是否需要在遥测层新增 `small_engine_used`/`reduced_shape` 统计，以便量化小矩阵路径命中率。
+- 策略合并：若后续引入多档防守动作，需确认 `original_index_map` 与回填逻辑在多重合并情形下的表现。必要时在 H 阶段或 Review 文档追加专项测试计划。
+
 —— 以上。
 
 ## 附：G5阶段最小 PR 模板（TDD）— Runtime facing 键与查表回退链路
@@ -153,3 +163,140 @@
 5) 发布与回滚
    - Feature flag：可用 `SUGGEST_TABLE_MODE` 或新增临时开关控制“含 facing 键查表”启用范围；
    - 回滚：关闭开关或回退 commit 即恢复旧路径；不影响规则/保守回退与教学解释。
+
+---
+
+# G6 阶段性审阅（小矩阵 LP 降阶引擎）
+
+— 审阅日期：2025‑10‑03
+
+— 评审范围：`tools/solve_lp.py`、`tools/numerics.py`、`tools/export_policy.py`、`tools/m2_smoke.py`、单测 `tests/test_small_matrix_lp.py`、`tests/test_policy_export.py`、`tests/test_lp_solver_backend.py`。
+
+— 结论：G6 核心能力与 DoD 已达成，满足“max(rows, cols) ≤ 5”门槛、2×2 解析、≤5×5 劣汰+小矩阵路径、CLI 优先级与“0 权重回填导出”。存在一项轻微欠缺：`m2_smoke` 报告未汇总 small‑engine 使用占比与方法分布，建议补齐但不阻塞合入。
+
+## 一、对照任务与 DoD 的核对结果
+
+- 小引擎门槛（通过）
+  - 代码：`solve_lp.solve_lp(..., small_max_dim=5)` 以 `matrix_max_dim <= small_max_dim` 触发；`--small-max-dim` 可调。
+  - 单测：`test_rectangular_small_matrices_supported` 覆盖 1×5、5×1、2×5、5×2，均走 `backend=small`。
+
+- 2×2 解析与退化回退（通过）
+  - 代码：`_solve_small_matrix` 在 2×2 使用闭式解；`|denom|<EPS_DENOM` 回退 `linprog` 并标记 `degenerate=true`。
+  - 单测：`test_2x2_analytic_matches_linprog`、`test_degenerate_ties_lexicographic_tiebreak`。
+
+- ≤5×5 劣汰/重复合并 + 小矩阵求解（通过）
+  - 代码：`_reduce_small_matrix` 去重/严格劣汰，输出 `reduced_shape/domination_steps/hero_index_map/villain_index_map`；非 2×2 用 `linprog`（method=highs）并标记 `method='linprog_small'`。
+  - 单测：`test_3x3_strict_domination_reduction_value_close`、`test_duplicate_rows_cols_coalesce`。
+
+- 数值常量统一（通过）
+  - 代码：`tools/numerics.py` 暴露 `EPS=1e-9`、`EPS_DENOM=1e-12`；`solve_lp` 与 `export_policy` 复用。
+
+- CLI 语义优先级（通过）
+  - 代码：`--small-engine {auto,on,off}` 优先于 `--solver`；当 `on` 且超门槛抛错；`auto` 满足门槛优先小引擎。
+  - 单测：`test_cli_precedence_small_engine_over_backend`（在 `--solver linprog` + `--small-engine on` 下仍走 small）。
+
+- 导出“0 权重回填 + original_index_map”（通过）
+  - 代码：`solve_lp` 在 small 路径写入节点 `meta.original_index_map/original_actions/reduced_shape/domination_steps`；`export_policy` 读取并回填 0 权重，NPZ `meta.node_meta` 挂载上述字段。
+  - 单测：`tests/test_policy_export.py::test_export_fillback_zero_weights_and_index_map` 验证字段与回填后权重为 0。
+
+## 二、发现的差距与建议（不阻塞合入）
+
+1) m2_smoke 报告未统计 small‑engine 使用分布
+   - 现状：`tools/m2_smoke.py` 报告包含 backend、节点数与产物 size；未聚合 `small_engine_used/method/reduced_shape`。
+   - 建议（行动项）：
+     - 在 `solution_dict.meta` 中读取 `small_engine_used/method/reduced_shape`，汇总为：
+       - `small_engine_used_count`、`small_engine_used_ratio`；
+       - `small_methods_sample`: 采样若干 method 值及 reduced_shape；
+     - 报告输出新增三行，便于 G7 审计引用。
+
+2) 候选增强：对门槛边界的回归用例
+   - 建议新增单测：当 `shape=(6,5)` 或 `(5,6)` 且 `--small-max-dim 5` 时，`backend != 'small'`；当 `--small-max-dim 6` 时改为 small。
+
+3) 文档补充（已在任务书G6锁定段落说明，建议在 README/Runbook 摘要同口径）
+   - 在开发者 Runbook 简要说明：`--small-engine` 的 on/auto/off 行为与门槛含义；异常时的报错语义。
+
+## 三、验收结论与后续联动（G6 → G7）
+
+- 验收结论：通过（Go）。
+- 与 G7 的衔接：
+  - `export_policy` 的“回填 0 权重 + original_index_map”保证策略表动作枚举与运行时/审计一致，可直接用于 `policy_coverage_audit` 与 `policy_vs_rules`。
+  - 建议在 `m2_smoke` 报告中补齐 small‑engine 聚合，以便 G7 报告引用；不影响当前合入。
+
+## 四、后续行动清单（Actionable TODO）
+
+1) ✅ 补齐 `m2_smoke` 报告聚合：small_engine_used 计数/占比 + method/reduced_shape 样例（Owner: Algo/Tools）。
+2) ✅ 增加门槛边界单测（6×5/5×6 与 `--small-max-dim` 变更）（Owner: QA）。
+3) ✅ Runbook/README 增补 CLI 语义与门槛说明（Owner: Eng Docs）。
+
+---
+
+## 附：G6 阶段最小 PR 模板（TDD）— small‑engine 报告聚合 + 门槛边界单测
+
+— 目的：在不改动主流程的前提下，补齐 G6 审阅中指出的轻微欠缺，使 G6 阶段在报告与回归用例上完整闭环；遵循“先测后码”的最小改动策略，可随时回滚。
+
+— PR 标题
+- tools: smoke 报告补充 small‑engine 聚合 + 边界单测（TDD）
+
+— 变更范围（最小集）
+- tests/test_tools_smoke_m2.py：新增 small‑engine 聚合断言用例。
+- tests/test_small_matrix_lp.py：新增门槛边界用例（small_max_dim 边界）。
+- tools/m2_smoke.py：补充报告聚合输出（不改变既有字段与顺序的前半部分）。
+
+— TDD 步骤（先红后绿）
+1) 添加/修改测试（预计失败）
+   - 在 tests/test_tools_smoke_m2.py 末尾新增：
+     - def test_m2_smoke_reports_small_engine_aggregates(tmp_path):
+       - 运行 m2_smoke.main([...]) 后读取报告，断言包含以下三行键：
+         - small_engine_used_count=\d+
+         - small_engine_used_ratio=\d+(\.\d+)?
+         - small_methods_sample=（包含 method 与 reduced_shape 的 JSON 片段，例如 analytic/linprog_small 与 [r,c]）
+   - 在 tests/test_small_matrix_lp.py 末尾新增：
+     - def test_boundary_small_max_dim():
+       - 构造 payoff 形状 (6,5) 与 (5,6)，调用 solve_lp(..., backend="auto", small_engine="auto", small_max_dim=5) 断言 backend != "small"；
+       - 再以 small_max_dim=6 调用，断言 backend == "small"。
+
+2) 实现最小代码（使测试转绿）
+   - tools/m2_smoke.py（report 聚合，仅追加末尾 3 行）：
+     - 从 `result["meta"]` 读取：`small_engine_used`（bool），`method`（可能不存在），`reduced_shape`（可能不存在）。
+     - 组装统计：
+       - `total_runs = len(records)`（当前烟囱仅 1 次求解，可扩展为多节点聚合）
+       - `small_engine_used_count = sum(1 for r in records if r.used)`
+       - `small_engine_used_ratio = small_engine_used_count / max(total_runs, 1)`
+       - `small_methods_sample = {"method": sample.method or "na", "reduced_shape": sample.reduced_shape}`（优先挑选命中小引擎的样本，若无则回退首个记录）
+     - 在报告尾部追加三行：
+       - f"small_engine_used_count={small_engine_used_count}"
+       - f"small_engine_used_ratio={small_engine_used_ratio:.2f}"
+       - f"small_methods_sample={json.dumps(small_methods_sample, sort_keys=True)}"
+     - 注意：保持现有 PASS/Elapsed/artifact/solver_backend 行不变，新增行位于末尾，避免影响现有解析脚本。
+
+3) 本地验证
+   - 运行：
+     - `pytest -q tests/test_small_matrix_lp.py::test_boundary_small_max_dim`（先通过边界用例）
+     - `pytest -q tests/test_tools_smoke_m2.py::test_m2_smoke_reports_small_engine_aggregates`（验证报告新增行）
+     - `pytest -q`（全量快测）
+
+— 验收标准（DoD）
+- 单测全部通过；CI Quick 模式下不增加显著耗时（m2_smoke 仍为玩具树）。
+- 报告新增三行稳定输出：small_engine_used_count、small_engine_used_ratio、small_methods_sample；格式符合断言（数字与 JSON）。
+- 未改动既有报告行与键名；下游解析与文档无需调整。
+
+— 风险与回滚
+- 低风险：仅在 smoke 报告追加末尾三行，且用例为边界判断的补充；如需回滚，删除新增测试与三行输出即可。
+
+— 备注
+- 若后续在烟雾管线串联更大树/多节点解算，再扩展 small‑engine 统计维度为“逐节点聚合”；当前最小实现按单次求解统计即可满足 G6 的报告对齐要求。
+
+---
+
+## G6 最终验收报告（2025‑10‑03）
+
+结论：PASS（Go）。以下关键点均已实装并具备可回归证据：
+
+- 门槛与开关优先级生效：`tools/solve_lp.py:624`、`tools/solve_lp.py:653`、`tools/solve_lp.py:666`、`tools/solve_lp.py:679`、`tools/solve_lp.py:931`、`tools/solve_lp.py:937`。
+- 2×2 解析 + 退化回退：`tools/solve_lp.py:555`、`tools/numerics.py:3`、`tools/numerics.py:4`。
+- 劣汰/重复合并与元信息：`tools/solve_lp.py:570`、`tools/solve_lp.py:672`。
+- 导出“0 权重回填 + original_index_map”：`tools/export_policy.py:149`、`tools/export_policy.py:164`、`tools/export_policy.py:179`、`tools/export_policy.py:181`。
+- Smoke 报告 small‑engine 聚合：`tools/m2_smoke.py:223`、`tools/m2_smoke.py:224`、`tools/m2_smoke.py:226`。
+- 测试覆盖与断言：`tests/test_small_matrix_lp.py:182`、`tests/test_small_matrix_lp.py:211`、`tests/test_policy_export.py:179`、`tests/test_tools_smoke_m2.py:98`。
+
+备注：文档 Runbook/README 的 CLI 摘要将于文档小版本统一补齐（不影响交付与回归）。

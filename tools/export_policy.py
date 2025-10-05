@@ -6,6 +6,7 @@ import argparse
 import json
 import math
 from collections.abc import Mapping
+from collections.abc import Sequence
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
@@ -13,9 +14,9 @@ from typing import Any
 
 import numpy as np
 
-__all__ = ["export_from_solution", "main"]
+from .numerics import EPS as NUM_EPS
 
-_EPS = 1e-9
+__all__ = ["export_from_solution", "main"]
 
 
 class PolicyExportError(RuntimeError):
@@ -115,35 +116,69 @@ def _normalise_node(raw: Mapping[str, Any], *, index: int) -> dict[str, Any]:
     if not isinstance(actions_raw, list):
         raise PolicyExportError(f"Node {node_key} actions must be a list")
 
-    actions: list[str] = []
-    weights_raw: list[float] = []
-    size_tags: list[str | None] = []
+    action_payloads: list[tuple[str, float, str | None]] = []
     for arm in actions_raw:
         if not isinstance(arm, dict):
             continue
         action_name = arm.get("action")
         if not isinstance(action_name, str) or not action_name:
             continue
-        actions.append(action_name)
-        weights_raw.append(_normalise_weight(arm.get("weight")))
+        weight_value = _normalise_weight(arm.get("weight"))
         size_tag = arm.get("size_tag")
-        size_tags.append(str(size_tag) if size_tag is not None else None)
+        size_tag_str = str(size_tag) if size_tag is not None else None
+        action_payloads.append((action_name, weight_value, size_tag_str))
 
-    if not actions:
+    if not action_payloads:
         raise PolicyExportError(f"Node {node_key} contains no valid actions")
 
-    total = sum(weights_raw)
-    if total <= _EPS:
-        weights = [1.0 if i == 0 else 0.0 for i in range(len(actions))]
+    total = sum(weight for _, weight, _ in action_payloads)
+    if total <= NUM_EPS:
+        normalised_weights = [1.0 if i == 0 else 0.0 for i in range(len(action_payloads))]
     else:
-        weights = [w / total for w in weights_raw]
+        normalised_weights = [weight / total for _, weight, _ in action_payloads]
 
-    zero_weight_actions = [a for a, w in zip(actions, weights, strict=False) if w <= _EPS]
+    actions = [name for name, _, _ in action_payloads]
+    weights = list(normalised_weights)
+    size_tags = [tag for _, _, tag in action_payloads]
     components = _build_components(raw, node_key)
     components_facing = str(components.get("facing") or "na")
 
     raw_meta = raw.get("meta") if isinstance(raw.get("meta"), Mapping) else {}
     meta_flags: dict[str, Any] = dict(raw_meta)
+
+    original_actions_raw = meta_flags.get("original_actions")
+    index_map_raw = meta_flags.get("original_index_map")
+    if isinstance(original_actions_raw, Sequence) and original_actions_raw:
+        original_actions = [str(item) for item in original_actions_raw]
+        if isinstance(index_map_raw, Sequence) and index_map_raw:
+            try:
+                index_map = [int(x) for x in index_map_raw]
+            except Exception:
+                index_map = list(range(len(actions)))
+        else:
+            index_map = list(range(len(actions)))
+        lookup = {idx: pos for pos, idx in enumerate(index_map)}
+        expanded_actions: list[str] = []
+        expanded_weights: list[float] = []
+        expanded_sizes: list[str | None] = []
+        for idx, name in enumerate(original_actions):
+            pos = lookup.get(idx)
+            if pos is None or pos >= len(actions):
+                expanded_actions.append(name)
+                expanded_weights.append(0.0)
+                expanded_sizes.append(None)
+            else:
+                expanded_actions.append(name)
+                expanded_weights.append(weights[lookup[idx]])
+                expanded_sizes.append(size_tags[pos])
+        actions = expanded_actions
+        weights = expanded_weights
+        size_tags = expanded_sizes
+        meta_flags["original_actions"] = original_actions
+        meta_flags["original_index_map"] = list(index_map)
+        meta_flags.setdefault("original_action_count_pre_reduction", len(original_actions))
+
+    zero_weight_actions = [a for a, w in zip(actions, weights, strict=False) if w <= NUM_EPS]
 
     fallback_from_raw = meta_flags.get("fallback_from")
     if isinstance(fallback_from_raw, list):
