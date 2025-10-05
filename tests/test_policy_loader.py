@@ -18,7 +18,7 @@ class DummyMetrics:
 def _write_policy_npz(path: Path, *, weight_scale: float = 1.0) -> None:
     node_keys = np.array(
         [
-            "flop|single_raised|caller|oop|texture=dry|spr=spr4|hand=top_pair",
+            "flop|single_raised|caller|oop|texture=dry|spr=spr4|facing=na|hand=top_pair",
         ],
         dtype=object,
     )
@@ -55,6 +55,7 @@ def _write_policy_npz(path: Path, *, weight_scale: float = 1.0) -> None:
                     "pos": "oop",
                     "texture": "dry",
                     "spr": "spr4",
+                    "facing": "na",
                     "bucket": "na",
                 },
             }
@@ -86,10 +87,15 @@ def test_loader_reads_npz_and_normalizes_weights(tmp_path: Path) -> None:
     _write_policy_npz(policy_path, weight_scale=0.5)
 
     loader = PolicyLoader(policy_path)
-    entry = loader.lookup("flop|single_raised|caller|oop|texture=dry|spr=spr4|hand=top_pair")
+    entry = loader.lookup(
+        "flop|single_raised|caller|oop|texture=dry|spr=spr4|facing=na|hand=top_pair"
+    )
 
     assert entry is not None
-    assert entry.node_key == "flop|single_raised|caller|oop|texture=dry|spr=spr4|hand=top_pair"
+    assert (
+        entry.node_key
+        == "flop|single_raised|caller|oop|texture=dry|spr=spr4|facing=na|hand=top_pair"
+    )
     assert pytest.approx(sum(entry.weights)) == 1.0
     assert entry.actions == ("bet", "check")
     assert entry.size_tags[0] == "third"
@@ -119,7 +125,9 @@ def test_loader_refresh_on_file_change(tmp_path: Path) -> None:
     _write_policy_npz(policy_path)
 
     loader = PolicyLoader(policy_path)
-    first = loader.lookup("flop|single_raised|caller|oop|texture=dry|spr=spr4|hand=top_pair")
+    first = loader.lookup(
+        "flop|single_raised|caller|oop|texture=dry|spr=spr4|facing=na|hand=top_pair"
+    )
     assert first is not None
     assert pytest.approx(first.weights[0]) == 0.6
 
@@ -127,7 +135,9 @@ def test_loader_refresh_on_file_change(tmp_path: Path) -> None:
     _write_policy_npz(policy_path, weight_scale=2.0)
     os.utime(policy_path, None)
 
-    second = loader.lookup("flop|single_raised|caller|oop|texture=dry|spr=spr4|hand=top_pair")
+    second = loader.lookup(
+        "flop|single_raised|caller|oop|texture=dry|spr=spr4|facing=na|hand=top_pair"
+    )
     assert second is not None
     assert pytest.approx(second.weights[0]) == 0.6  # normalized from scaled weights
     assert second.table_meta["version"] == "test_v1"

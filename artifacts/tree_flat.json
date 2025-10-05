@@ -508,6 +508,61 @@
           "next": "terminal_fold_post"
         }
       ]
+    },
+    {
+      "node_id": "terminal_fold_pre",
+      "parent": null,
+      "street": "terminal",
+      "role": "none",
+      "facing": "none",
+      "rcap": {
+        "raises": 0
+      },
+      "actions": []
+    },
+    {
+      "node_id": "terminal_win_pre",
+      "parent": null,
+      "street": "terminal",
+      "role": "none",
+      "facing": "none",
+      "rcap": {
+        "raises": 0
+      },
+      "actions": []
+    },
+    {
+      "node_id": "terminal_allin",
+      "parent": null,
+      "street": "terminal",
+      "role": "none",
+      "facing": "none",
+      "rcap": {
+        "raises": 0
+      },
+      "actions": []
+    },
+    {
+      "node_id": "terminal_fold_post",
+      "parent": null,
+      "street": "terminal",
+      "role": "none",
+      "facing": "none",
+      "rcap": {
+        "raises": 0
+      },
+      "actions": []
+    },
+    {
+      "node_id": "terminal_showdown",
+      "parent": null,
+      "street": "terminal",
+      "role": "none",
+      "facing": "none",
+      "rcap": {
+        "raises": 0
+      },
+      "actions": []
     }
   ],
   "edges": [

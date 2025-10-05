@@ -69,6 +69,12 @@ def patch_analysis(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def set_policy_version_env(monkeypatch):
+    """确保所有测试都使用 v1 策略版本"""
+    monkeypatch.setenv("SUGGEST_POLICY_VERSION", "v1")
+
+
 @pytest.mark.parametrize(
     "name,gs_factory,acts",
     [
@@ -310,7 +316,6 @@ def test_snapshot(name, gs_factory, acts, monkeypatch):
         return acts
 
     monkeypatch.setattr("poker_core.suggest.service.legal_actions_struct", _legal_actions)
-    monkeypatch.setenv("SUGGEST_POLICY_VERSION", "v1")
 
     gs = gs_factory()
 

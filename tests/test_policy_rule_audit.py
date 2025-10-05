@@ -11,7 +11,7 @@ from tools import audit_policy_vs_rules
 def _write_policy(tmp_path: Path, weights: tuple[float, float]) -> Path:
     path = tmp_path / "policies"
     path.mkdir()
-    node_key = "flop|single_raised|caller|oop|texture=dry|spr=spr4|hand=top_pair"
+    node_key = "flop|single_raised|caller|oop|texture=dry|spr=spr4|facing=na|hand=top_pair"
     np.savez(
         path / "postflop.npz",
         node_keys=np.array([node_key], dtype=object),
@@ -33,6 +33,7 @@ def _write_policy(tmp_path: Path, weights: tuple[float, float]) -> Path:
                         "pos": "oop",
                         "texture": "dry",
                         "spr": "spr4",
+                        "facing": "na",
                         "bucket": "na",
                     },
                 }
@@ -54,7 +55,7 @@ def _write_policy(tmp_path: Path, weights: tuple[float, float]) -> Path:
 
 def _write_rules(path: Path, *, bet_weight: float, check_weight: float) -> Path:
     data = {
-        "flop|single_raised|caller|oop|texture=dry|spr=spr4|hand=top_pair": {
+        "flop|single_raised|caller|oop|texture=dry|spr=spr4|facing=na|hand=top_pair": {
             "actions": {
                 "bet": bet_weight,
                 "check": check_weight,
@@ -99,7 +100,7 @@ def test_audit_handles_missing_policy_entries(tmp_path: Path) -> None:
 
     # Extend rules with an extra node that is absent from the policy.
     extra = {
-        "river|single_raised|caller|ip|texture=wet|spr=low|hand=flush": {
+        "river|single_raised|caller|ip|texture=wet|spr=low|facing=na|hand=flush": {
             "actions": {"check": 1.0},
             "size_tag": "na",
         }

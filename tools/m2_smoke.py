@@ -40,6 +40,20 @@ def _toy_tree() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[st
                     {"name": "bet", "next": "villain_after_bet"},
                     {"name": "check", "next": "villain_after_check"},
                 ],
+                "policy": {
+                    "node_key": "preflop/single_raised/role:pfr/ip/texture:na/spr:mid/bucket:0",
+                    "street": "preflop",
+                    "pot_type": "single_raised",
+                    "role": "pfr",
+                    "pos": "ip",
+                    "texture": "na",
+                    "spr": "mid",
+                    "bucket": 0,
+                    "actions": [
+                        {"action": "bet", "size_tag": "2.5x"},
+                        {"action": "check"},
+                    ],
+                },
             },
             {
                 "id": "villain_after_bet",
@@ -58,46 +72,7 @@ def _toy_tree() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[st
                 ],
             },
         ],
-    }
-    buckets = {"hero": ["H0"], "villain": ["V0"]}
-    transitions = {"turn_to_river": [[1.0]]}
-    leaf_ev = {
-        "leaf_bet_fold": 0.2,
-        "leaf_bet_call": -0.1,
-        "leaf_check_fold": 0.0,
-        "leaf_check_call": 0.05,
-    }
-    return tree, buckets, transitions, leaf_ev
-
-
-def _build_solution_dict(result: dict[str, Any], seed: int) -> dict[str, Any]:
-    hero_strategy = result.get("strategy", {})
-    bet_weight = float(hero_strategy.get("bet", 0.0))
-    check_weight = float(hero_strategy.get("check", 0.0))
-    postflop_mix = 1.0 - min(max(bet_weight, 0.0), 1.0)
-
-    return {
-        "meta": {
-            "solver_backend": result.get("backend", "unknown"),
-            "seed": seed,
-            "tree_hash": "toy-tree-v1",
-            "lp_value": result.get("value"),
-        },
-        "nodes": [
-            {
-                "node_key": "preflop/single_raised/role:pfr/ip/texture:na/spr:mid/bucket:0",
-                "street": "preflop",
-                "pot_type": "single_raised",
-                "role": "pfr",
-                "pos": "ip",
-                "texture": "na",
-                "spr": "mid",
-                "bucket": 0,
-                "actions": [
-                    {"action": "bet", "size_tag": "2.5x", "weight": bet_weight},
-                    {"action": "check", "weight": check_weight},
-                ],
-            },
+        "policy_nodes": [
             {
                 "node_key": "flop/single_raised/role:caller/oop/texture:dry/spr:mid/bucket:4",
                 "street": "flop",
@@ -122,12 +97,21 @@ def _build_solution_dict(result: dict[str, Any], seed: int) -> dict[str, Any]:
                 "spr": "low",
                 "bucket": 2,
                 "actions": [
-                    {"action": "bet", "size_tag": "75", "weight": postflop_mix * 0.5},
-                    {"action": "check", "weight": postflop_mix * 0.5 + 0.5},
+                    {"action": "bet", "size_tag": "75", "weight": 0.4},
+                    {"action": "check", "weight": 0.6},
                 ],
             },
         ],
     }
+    buckets = {"hero": ["H0"], "villain": ["V0"]}
+    transitions = {"turn_to_river": [[1.0]]}
+    leaf_ev = {
+        "leaf_bet_fold": 0.2,
+        "leaf_bet_call": -0.1,
+        "leaf_check_fold": 0.0,
+        "leaf_check_call": 0.05,
+    }
+    return tree, buckets, transitions, leaf_ev
 
 
 def _maybe_write(path: Path, content: str, *, reuse: bool, force: bool) -> bool:
@@ -164,7 +148,18 @@ def run_smoke(
     tree, buckets, transitions, leaf_ev = _toy_tree()
 
     result = lp_solver.solve_lp(tree, buckets, transitions, leaf_ev, backend="auto", seed=seed)
-    solution_dict = _build_solution_dict(result, seed)
+    solution_meta = dict(result.get("meta", {}))
+    solution_meta.setdefault("solver_backend", result.get("backend", "unknown"))
+    solution_meta.setdefault("seed", seed)
+    solution_meta.setdefault("lp_value", result.get("value"))
+    solution_dict = {
+        "backend": result.get("backend"),
+        "value": result.get("value"),
+        "meta": solution_meta,
+        "strategy": result.get("strategy", {}),
+        "dual_prices": result.get("dual_prices", {}),
+        "nodes": result.get("nodes", []),
+    }
     solution_path = artifacts_dir / "lp_solution.json"
     reused_solution = _maybe_write(
         solution_path,

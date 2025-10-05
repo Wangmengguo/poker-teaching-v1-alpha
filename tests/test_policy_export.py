@@ -15,13 +15,14 @@ def _write_solution(tmp_path: Path) -> Path:
         },
         "nodes": [
             {
-                "node_key": "preflop/single_raised/role:pfr/ip/texture:na/spr:mid/bucket:3",
+                "node_key": "preflop/single_raised/role:pfr/ip/texture:na/spr:mid/facing:na/bucket:3",
                 "street": "preflop",
                 "pot_type": "single_raised",
                 "role": "pfr",
                 "pos": "ip",
                 "texture": "na",
                 "spr": "mid",
+                "facing": "na",
                 "bucket": 3,
                 "actions": [
                     {"action": "raise", "size_tag": "2.5x", "weight": 0.75},
@@ -29,13 +30,14 @@ def _write_solution(tmp_path: Path) -> Path:
                 ],
             },
             {
-                "node_key": "flop/single_raised/role:caller/oop/texture:dry/spr:mid/bucket:5",
+                "node_key": "flop/single_raised/role:caller/oop/texture:dry/spr:mid/facing:half/bucket:5",
                 "street": "flop",
                 "pot_type": "single_raised",
                 "role": "caller",
                 "pos": "oop",
                 "texture": "dry",
                 "spr": "mid",
+                "facing": "half",
                 "bucket": 5,
                 "actions": [
                     {"action": "bet", "size_tag": "33", "weight": 0.0},
@@ -43,13 +45,14 @@ def _write_solution(tmp_path: Path) -> Path:
                 ],
             },
             {
-                "node_key": "turn/single_raised/role:pfr/ip/texture:semi/spr:low/bucket:2",
+                "node_key": "turn/single_raised/role:pfr/ip/texture:semi/spr:low/facing:na/bucket:2",
                 "street": "turn",
                 "pot_type": "single_raised",
                 "role": "pfr",
                 "pos": "ip",
                 "texture": "semi",
                 "spr": "low",
+                "facing": "na",
                 "bucket": 2,
                 "actions": [
                     {"action": "bet", "size_tag": "75", "weight": 0.4},
@@ -102,6 +105,7 @@ def test_policy_export_respects_node_key_schema(tmp_path):
         assert components["pot_type"] == "single_raised"
         assert components["role"].startswith("role:")
         assert components["pos"] in {"ip", "oop"}
+        assert components["facing"] in {"na", "half"}
         reconstructed = "/".join(
             [
                 components["street"],
@@ -110,6 +114,7 @@ def test_policy_export_respects_node_key_schema(tmp_path):
                 components["pos"],
                 f"texture:{components['texture']}",
                 f"spr:{components['spr']}",
+                f"facing:{components['facing']}",
                 f"bucket:{components['bucket']}",
             ]
         )

@@ -1,0 +1,42 @@
+{
+  "backend": "linprog",
+  "value": 0.02857142857142857,
+  "strategy": {
+    "bet": 0.14285714285714285,
+    "check": 0.8571428571428571
+  },
+  "dual_prices": {
+    "fold": 0.4285714285714286,
+    "call": 0.5714285714285714
+  },
+  "meta": {
+    "status": "optimal",
+    "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
+    "iterations": 2,
+    "objective": -0.02857142857142857,
+    "seed": 123,
+    "selected_backend": "linprog",
+    "hero_actions": [
+      "bet",
+      "check"
+    ],
+    "villain_actions": [
+      "fold",
+      "call"
+    ],
+    "warnings": [
+      "HiGHS backend not available"
+    ],
+    "dual_residual": [
+      0.0,
+      0.0
+    ],
+    "dual_marginals_raw": [
+      -0.5714285714285714,
+      -0.4285714285714286
+    ],
+    "eq_marginals": [
+      -0.02857142857142857
+    ]
+  }
+}

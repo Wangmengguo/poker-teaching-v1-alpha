@@ -44,6 +44,7 @@ def test_node_key_components():
     assert "oop" in parts
     assert any(part.startswith("texture=") and part.endswith("semi") for part in parts)
     assert any(part.startswith("spr=") and part.endswith("spr4") for part in parts)
+    assert any(part.startswith("facing=") and part.endswith("na") for part in parts)
     assert key.endswith("hand=value_two_pair_plus")
 
 
