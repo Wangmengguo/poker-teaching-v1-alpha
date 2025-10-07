@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -78,3 +79,33 @@ def test_m2_smoke_handles_partial_artifacts(tmp_path):
     assert "reused=true" in joined
     assert "postflop.npz" in joined
     assert "reused=false" in joined
+
+
+def test_m2_smoke_reports_small_engine_aggregates(tmp_path):
+    report_path = tmp_path / "reports" / "m2_smoke.md"
+    exit_code = m2_smoke.main(
+        [
+            "--out",
+            str(report_path),
+            "--workspace",
+            str(tmp_path),
+            "--quick",
+        ]
+    )
+    assert exit_code == 0
+
+    lines = _read_report(report_path)
+    count_line = next(line for line in lines if line.startswith("small_engine_used_count="))
+    ratio_line = next(line for line in lines if line.startswith("small_engine_used_ratio="))
+    sample_line = next(line for line in lines if line.startswith("small_methods_sample="))
+
+    _, count_value = count_line.split("=", maxsplit=1)
+    assert int(count_value) >= 0
+
+    _, ratio_value = ratio_line.split("=", maxsplit=1)
+    assert 0.0 <= float(ratio_value) <= 1.0
+
+    _, sample_value = sample_line.split("=", maxsplit=1)
+    parsed = json.loads(sample_value)
+    assert "method" in parsed
+    assert "reduced_shape" in parsed

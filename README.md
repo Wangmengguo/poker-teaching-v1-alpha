@@ -84,6 +84,38 @@ export SUGGEST_TABLE_MODE=HU
 - 单次：`python scripts/suggest_debug_tool.py single --policy auto --pct 10 --debug 1 --seed 42 --button 0`
 - 灰度分布：`python scripts/suggest_debug_tool.py dist --policy auto --pct 10 --debug 1 --count 2000 --show-sample 8`
 
+— 小矩阵 LP CLI（G6） —
+- `python -m tools.solve_lp --tree tree.json --buckets buckets.json --transitions transitions.json --leaf_ev leaf.json --out solution.json`
+- `--small-engine {auto,on,off}`：`auto`（默认）在 `max(rows, cols) ≤ --small-max-dim` 时优先走小矩阵路径；`on` 强制使用（若超门槛将抛出 `small engine forced on but matrix dimension ... exceeds limit ...`）；`off` 完全禁用。
+- `--small-max-dim <int>`：小引擎门槛（默认 5）。当矩阵最大维度超过该值时会退回 HiGHS/linprog；提高门槛（例如 6）可在 6×5/5×6 等边界矩阵上启用小引擎。
+- 小引擎元信息：`meta.small_engine_used/method/reduced_shape/domination_steps` 记录是否降阶、具体方法（analytic/linprog_small 等）与裁剪形状；烟囱报告 `tools.m2_smoke` 会聚合这些字段。
+
+— 导出与烟囱 CLI 快查（M2/G6） —
+
+- 导出策略表（export_policy）
+  - 基本用法：
+    ```bash
+    python -m tools.export_policy \
+      --solution artifacts/lp_solution.json \
+      --out artifacts/policies \
+      --debug-jsonl reports/policy_sample.jsonl  # 可选，仅导出少量样本
+    ```
+  - 行为摘要：
+    - 读取解算产物中的 `nodes` 并输出 `preflop.npz/postflop.npz`；
+    - 当解算阶段做过降阶，导出层按照 `meta.original_actions + original_index_map` 对“被劣汰动作”进行 0 权重回填，保证运行时/审计动作枚举一致；
+    - NPZ `meta.node_meta` 含：`original_index_map`、`original_action_count_pre_reduction`、`reduced_shape`、`domination_steps`、`zero_weight_actions`。
+
+- 烟囱验证（m2_smoke）
+  - 基本用法：
+    ```bash
+    python -m tools.m2_smoke --out reports/m2_smoke.md --workspace . --quick --seed 123
+    ```
+  - 报告新增（G6）：
+    - `small_engine_used_count=<int>`
+    - `small_engine_used_ratio=<0..1>`
+    - `small_methods_sample={"method": "analytic|linprog_small|na", "reduced_shape": [r,c]|null}`
+  - 其他：报告仍包含 artifact 列表与 `solver_backend=value` 概要；新增行位于报告末尾，对现有解析脚本无影响。
+
 -— 策略关键口径 —
 - 赔率：`pot_odds = to_call / (pot_now + to_call)`；`pot_now = pot + sum(invested_street)`（不含本次待跟注）。
 - SB vs 3bet 兜底：仅当 `pot_odds <= defend_threshold_ip`（默认 0.42）或三注极小（<2.2bb）时补跟，其余 fallback 直接弃牌。

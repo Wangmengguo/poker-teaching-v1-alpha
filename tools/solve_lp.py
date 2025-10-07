@@ -21,10 +21,14 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
 from scipy.optimize import linprog
+
+from .numerics import EPS as NUM_EPS
+from .numerics import EPS_DENOM
 
 __all__ = ["solve_lp", "LPSolverError", "main", "_import_highspy"]
 
@@ -371,6 +375,165 @@ def _normalize_dual(dual: Iterable[float]) -> np.ndarray:
     return _normalize_vector(arr)
 
 
+def _strictly_dominates_row(candidate: np.ndarray, other: np.ndarray) -> bool:
+    return bool(np.all(candidate >= other - NUM_EPS) and np.any(candidate > other + NUM_EPS))
+
+
+def _strictly_dominates_col(candidate: np.ndarray, other: np.ndarray) -> bool:
+    return bool(np.all(candidate <= other + NUM_EPS) and np.any(candidate < other - NUM_EPS))
+
+
+def _reduce_small_matrix(matrix: np.ndarray) -> tuple[np.ndarray, list[int], list[int], int]:
+    reduced = np.array(matrix, copy=True)
+    row_indices = list(range(reduced.shape[0]))
+    col_indices = list(range(reduced.shape[1]))
+    domination_steps = 0
+
+    if reduced.size == 0:
+        return reduced, row_indices, col_indices, domination_steps
+
+    while True:
+        changed = False
+
+        # Remove duplicate rows
+        duplicate_rows: set[int] = set()
+        for i in range(len(row_indices)):
+            if i in duplicate_rows:
+                continue
+            for j in range(i + 1, len(row_indices)):
+                if np.allclose(reduced[i], reduced[j], atol=NUM_EPS, rtol=0.0):
+                    duplicate_rows.add(j)
+        if duplicate_rows:
+            for idx in sorted(duplicate_rows, reverse=True):
+                del row_indices[idx]
+                reduced = np.delete(reduced, idx, axis=0)
+            domination_steps += len(duplicate_rows)
+            changed = True
+
+        # Remove duplicate columns
+        duplicate_cols: set[int] = set()
+        for i in range(len(col_indices)):
+            if i in duplicate_cols:
+                continue
+            col_i = reduced[:, i]
+            for j in range(i + 1, len(col_indices)):
+                if np.allclose(col_i, reduced[:, j], atol=NUM_EPS, rtol=0.0):
+                    duplicate_cols.add(j)
+        if duplicate_cols:
+            for idx in sorted(duplicate_cols, reverse=True):
+                del col_indices[idx]
+                reduced = np.delete(reduced, idx, axis=1)
+            domination_steps += len(duplicate_cols)
+            changed = True
+
+        # Strictly dominated rows (hero perspective)
+        dominated_row: int | None = None
+        for i in range(len(row_indices)):
+            for j in range(len(row_indices)):
+                if i == j:
+                    continue
+                if _strictly_dominates_row(reduced[j], reduced[i]):
+                    dominated_row = i
+                    break
+            if dominated_row is not None:
+                break
+        if dominated_row is not None:
+            del row_indices[dominated_row]
+            reduced = np.delete(reduced, dominated_row, axis=0)
+            domination_steps += 1
+            changed = True
+
+        # Strictly dominated columns (villain perspective)
+        dominated_col: int | None = None
+        for i in range(len(col_indices)):
+            for j in range(len(col_indices)):
+                if i == j:
+                    continue
+                if _strictly_dominates_col(reduced[:, j], reduced[:, i]):
+                    dominated_col = i
+                    break
+            if dominated_col is not None:
+                break
+        if dominated_col is not None:
+            del col_indices[dominated_col]
+            reduced = np.delete(reduced, dominated_col, axis=1)
+            domination_steps += 1
+            changed = True
+
+        if not changed:
+            break
+
+        if reduced.size == 0:
+            break
+
+    return reduced, row_indices, col_indices, domination_steps
+
+
+def _solve_small_matrix(
+    matrix: np.ndarray,
+) -> tuple[np.ndarray, float, np.ndarray, Any, dict[str, Any]]:
+    original_shape = matrix.shape
+    reduced, row_indices, col_indices, domination_steps = _reduce_small_matrix(matrix)
+
+    if reduced.size == 0:
+        raise LPSolverError("Reduced payoff matrix is empty")
+
+    meta: dict[str, Any] = {
+        "method": "linprog_small",
+        "reduced_shape": [int(reduced.shape[0]), int(reduced.shape[1])],
+        "domination_steps": int(domination_steps),
+        "original_shape": [int(original_shape[0]), int(original_shape[1])],
+        "hero_index_map": list(row_indices),
+        "villain_index_map": list(col_indices),
+        "degenerate": False,
+        "small_engine_used": True,
+    }
+
+    if reduced.shape == (1, 1):
+        value = float(reduced[0, 0])
+        hero = np.array([1.0], dtype=np.float64)
+        villain = np.array([1.0], dtype=np.float64)
+        scipy_result = SimpleNamespace(success=True, nit=0, message="small-analytic-1x1")
+        meta["method"] = "analytic"
+    elif reduced.shape[0] == 1:
+        row = reduced[0]
+        min_payoff = float(np.min(row))
+        mask = np.isclose(row, min_payoff, atol=NUM_EPS)
+        villain = _normalize_vector(mask.astype(np.float64))
+        hero = np.array([1.0], dtype=np.float64)
+        value = float(min_payoff)
+        scipy_result = SimpleNamespace(success=True, nit=0, message="small-analytic-1xN")
+        meta["method"] = "analytic"
+    elif reduced.shape[1] == 1:
+        column = reduced[:, 0]
+        max_payoff = float(np.max(column))
+        mask = np.isclose(column, max_payoff, atol=NUM_EPS)
+        hero = _normalize_vector(mask.astype(np.float64))
+        villain = np.array([1.0], dtype=np.float64)
+        value = float(max_payoff)
+        scipy_result = SimpleNamespace(success=True, nit=0, message="small-analytic-Nx1")
+        meta["method"] = "analytic"
+    elif reduced.shape == (2, 2):
+        a, b = float(reduced[0, 0]), float(reduced[0, 1])
+        c, d = float(reduced[1, 0]), float(reduced[1, 1])
+        denom = a - b - c + d
+        if abs(denom) < EPS_DENOM:
+            hero, value, villain, scipy_result = _solve_with_linprog(reduced, method="highs")
+            meta["degenerate"] = True
+        else:
+            p = (d - b) / denom
+            q = (d - c) / denom
+            hero = _normalize_vector(np.array([p, 1.0 - p], dtype=np.float64))
+            villain = _normalize_vector(np.array([q, 1.0 - q], dtype=np.float64))
+            value = float((a * d - b * c) / denom)
+            scipy_result = SimpleNamespace(success=True, nit=0, message="small-analytic-2x2")
+            meta["method"] = "analytic"
+    else:
+        hero, value, villain, scipy_result = _solve_with_linprog(reduced, method="highs")
+
+    return hero, value, villain, scipy_result, meta
+
+
 def _solve_with_linprog(
     payoff: np.ndarray, *, method: str
 ) -> tuple[np.ndarray, float, np.ndarray, Any]:
@@ -468,6 +631,8 @@ def solve_lp(
     *,
     backend: str = "highs",
     seed: int | None = None,
+    small_engine: str = "auto",
+    small_max_dim: int = 5,
 ) -> dict[str, Any]:
     """Solve a zero-sum matrix game extracted from the tree artifact."""
 
@@ -483,6 +648,15 @@ def solve_lp(
     if backend_key not in {"highs", "linprog", "auto"}:
         raise LPSolverError(f"Unsupported backend '{backend}'")
 
+    small_key = (small_engine or "auto").lower()
+    if small_key not in {"auto", "on", "off"}:
+        raise LPSolverError(f"Unsupported small engine mode '{small_engine}'")
+
+    max_dim_threshold = max(int(small_max_dim), 1)
+    matrix_max_dim = max(reordered.shape)
+    use_small_engine = False
+    small_meta: dict[str, Any] = {}
+
     selected = None
     hero_solution: np.ndarray | None = None
     villain_solution: np.ndarray | None = None
@@ -491,34 +665,76 @@ def solve_lp(
     backend_meta: dict[str, Any] = {}
     errors: list[str] = []
 
-    if backend_key == "highs":
+    if small_key != "off" and matrix_max_dim <= max_dim_threshold:
         try:
-            hero_solution, value, villain_solution, scipy_result, backend_meta = _run_highs_backend(
-                reordered, require_available=False
+            hero_solution, value, villain_solution, scipy_result, small_meta = _solve_small_matrix(
+                reordered
             )
-            selected = "highs"
-        except Exception as exc:  # pragma: no cover - defensive
-            raise LPSolverError("HiGHS backend failed") from exc
-    elif backend_key == "linprog":
-        hero_solution, value, villain_solution, scipy_result = _run_linprog_backend(reordered)
-        selected = "linprog"
-    else:  # auto
-        try:
-            hero_solution, value, villain_solution, scipy_result, backend_meta = _run_highs_backend(
-                reordered, require_available=True
-            )
-            selected = "highs"
-        except _BackendUnavailable as exc:
-            errors.append(str(exc))
+            backend_meta.update(small_meta)
+            selected = "small"
+            use_small_engine = True
+        except LPSolverError as exc:
+            if small_key == "on":
+                raise
+            errors.append(f"small engine unavailable: {exc}")
+            backend_meta.clear()
+    elif small_key == "on" and matrix_max_dim > max_dim_threshold:
+        raise LPSolverError(
+            f"small engine forced on but matrix dimension {matrix_max_dim} exceeds limit {max_dim_threshold}"
+        )
+
+    if not use_small_engine:
+        backend_meta.setdefault("small_engine_used", False)
+        if backend_key == "highs":
+            try:
+                hero_solution, value, villain_solution, scipy_result, backend_meta_highs = (
+                    _run_highs_backend(reordered, require_available=False)
+                )
+                backend_meta.update(backend_meta_highs)
+                selected = "highs"
+            except Exception as exc:  # pragma: no cover - defensive
+                raise LPSolverError("HiGHS backend failed") from exc
+        elif backend_key == "linprog":
             hero_solution, value, villain_solution, scipy_result = _run_linprog_backend(reordered)
             selected = "linprog"
-        except Exception as exc:  # pragma: no cover - unexpected failure
-            errors.append(f"HiGHS backend failed: {exc}")
-            hero_solution, value, villain_solution, scipy_result = _run_linprog_backend(reordered)
-            selected = "linprog"
+        else:  # auto
+            try:
+                hero_solution, value, villain_solution, scipy_result, backend_meta_highs = (
+                    _run_highs_backend(reordered, require_available=True)
+                )
+                backend_meta.update(backend_meta_highs)
+                selected = "highs"
+            except _BackendUnavailable as exc:
+                errors.append(str(exc))
+                hero_solution, value, villain_solution, scipy_result = _run_linprog_backend(
+                    reordered
+                )
+                selected = "linprog"
+            except Exception as exc:  # pragma: no cover - unexpected failure
+                errors.append(f"HiGHS backend failed: {exc}")
+                hero_solution, value, villain_solution, scipy_result = _run_linprog_backend(
+                    reordered
+                )
+                selected = "linprog"
 
     if hero_solution is None or villain_solution is None or value is None or scipy_result is None:
         raise LPSolverError("Solver failed to produce a solution")
+
+    if selected == "small":
+        kept_rows = small_meta.get("hero_index_map", list(range(len(hero_order))))
+        kept_cols = small_meta.get("villain_index_map", list(range(len(villain_order))))
+        hero_expanded = np.zeros(len(hero_order), dtype=np.float64)
+        for idx, original in enumerate(kept_rows):
+            hero_expanded[original] = hero_solution[idx]
+        villain_expanded = np.zeros(len(villain_order), dtype=np.float64)
+        for idx, original in enumerate(kept_cols):
+            villain_expanded[original] = villain_solution[idx]
+        hero_solution = hero_expanded
+        villain_solution = villain_expanded
+        backend_meta["hero_index_map"] = [hero_order[index] for index in kept_rows]
+        backend_meta["villain_index_map"] = [villain_order[index] for index in kept_cols]
+        backend_meta["original_action_count_pre_reduction"] = len(hero_order)
+        backend_meta["original_response_count_pre_reduction"] = len(villain_order)
 
     hero_restored = _restore_order(hero_solution, hero_order)
     villain_restored = _restore_order(villain_solution, villain_order)
@@ -532,6 +748,20 @@ def solve_lp(
     }
 
     nodes = _build_policy_nodes(tree, game.hero_metadata, hero_dict)
+    if nodes and selected == "small":
+        hero_node_meta = nodes[0].setdefault("meta", {})
+        if backend_meta.get("hero_index_map") is not None:
+            hero_node_meta.setdefault("original_index_map", list(backend_meta["hero_index_map"]))
+        if backend_meta.get("original_action_count_pre_reduction") is not None:
+            hero_node_meta.setdefault(
+                "original_action_count_pre_reduction",
+                int(backend_meta["original_action_count_pre_reduction"]),
+            )
+        if backend_meta.get("reduced_shape") is not None:
+            hero_node_meta.setdefault("reduced_shape", list(backend_meta["reduced_shape"]))
+        if backend_meta.get("domination_steps") is not None:
+            hero_node_meta.setdefault("domination_steps", int(backend_meta["domination_steps"]))
+        hero_node_meta.setdefault("original_actions", list(game.hero_actions))
 
     meta = {
         "status": "optimal" if getattr(scipy_result, "success", False) else "failed",
@@ -703,6 +933,18 @@ def _build_cli_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--solver", default="auto", help="Solver backend: auto/highs/linprog")
     parser.add_argument("--seed", type=int, help="Optional random seed for action shuffling")
+    parser.add_argument(
+        "--small-engine",
+        default="auto",
+        choices=["auto", "on", "off"],
+        help="Enable analytic small-matrix engine (auto/on/off)",
+    )
+    parser.add_argument(
+        "--small-max-dim",
+        type=int,
+        default=5,
+        help="Maximum matrix dimension eligible for small engine",
+    )
     parser.add_argument("--out", required=True, help="Output JSON path for solver results")
     parser.add_argument(
         "--log-meta",
@@ -751,6 +993,8 @@ def main(argv: list[str] | None = None) -> int:
         leaf_ev,
         backend=args.solver,
         seed=args.seed,
+        small_engine=args.small_engine,
+        small_max_dim=args.small_max_dim,
     )
 
     duration = time.time() - start

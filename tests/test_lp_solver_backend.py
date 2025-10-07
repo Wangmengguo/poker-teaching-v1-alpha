@@ -96,7 +96,9 @@ def toy_problem() -> tuple[dict, dict, dict, dict]:
 
 def test_highs_solver_solves_toy_tree(toy_problem):
     tree, buckets, transitions, leaf_ev = toy_problem
-    result = lp_solver.solve_lp(tree, buckets, transitions, leaf_ev, backend="highs", seed=None)
+    result = lp_solver.solve_lp(
+        tree, buckets, transitions, leaf_ev, backend="highs", seed=None, small_engine="off"
+    )
 
     assert result["backend"] == "highs"
     assert math.isclose(result["value"], 0.0285714286, rel_tol=1e-7)
@@ -118,14 +120,18 @@ def test_highs_solver_solves_toy_tree(toy_problem):
 def test_linprog_fallback_when_highs_missing(monkeypatch, toy_problem):
     tree, buckets, transitions, leaf_ev = toy_problem
 
-    baseline = lp_solver.solve_lp(tree, buckets, transitions, leaf_ev, backend="linprog")
+    baseline = lp_solver.solve_lp(
+        tree, buckets, transitions, leaf_ev, backend="linprog", small_engine="off"
+    )
 
     def _raise_import():
         raise ImportError("no highs available")
 
     monkeypatch.setattr(lp_solver, "_import_highspy", _raise_import)
 
-    auto = lp_solver.solve_lp(tree, buckets, transitions, leaf_ev, backend="auto")
+    auto = lp_solver.solve_lp(
+        tree, buckets, transitions, leaf_ev, backend="auto", small_engine="off"
+    )
 
     assert auto["backend"] == "linprog"
     for action, prob in baseline["strategy"].items():
@@ -147,7 +153,9 @@ def test_invalid_inputs_raise_diagnostic_error(toy_problem):
     }
 
     with pytest.raises(lp_solver.LPSolverError) as excinfo:
-        lp_solver.solve_lp(tree, buckets, transitions, leaf_ev, backend="linprog")
+        lp_solver.solve_lp(
+            tree, buckets, transitions, leaf_ev, backend="linprog", small_engine="off"
+        )
 
     message = str(excinfo.value)
     assert "villain_after_missing" in message

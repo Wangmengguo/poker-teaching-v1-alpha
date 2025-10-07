@@ -177,7 +177,7 @@
 — 完成影响：运行时可直接命中“含 facing 维度”的策略节点，降低回退比例，提升 G7 覆盖审计与 G6 评测质量。
 （状态：已完成 ✅）
 
-#### 任务 G6：小矩阵 LP 降阶求解引擎（2×2 解析 + ≤5×5 精简）
+#### ✅ 任务 G6：小矩阵 LP 降阶求解引擎（2×2 解析 + ≤5×5 精简）
 
 【决策锁定（2025‑10‑03） — Eval 批准】
 - 触发门槛：`max(rows, cols) ≤ 5` 时启用“小矩阵路径”。
@@ -222,6 +222,13 @@
   - `--small-engine` 开关优先级经测试验证：`on` 强制、`off` 禁用、`auto` 条件触发；当与 `--backend` 冲突时以小引擎为准（若满足门槛）。
   - 导出表包含“回填 0 权重”的完整动作集，含 `meta.original_index_map`、`meta.reduced_shape`、`meta.domination_steps`；`tools.audit_policy_vs_rules` 与运行时查表在动作枚举上“零差异”。
   - `tools/m2_smoke.py` 报告新增聚合：`small_engine_used=true` 的节点计数/占比，`method`/`reduced_shape` 分布样例。
+
+- 进展记录（G6 实做小结）
+  - `tools/solve_lp.py` 新增小矩阵解析/降阶引擎，覆盖 `2×2` 闭式解、≤5×5 劣汰与长条矩阵，支持 `--small-engine/--small-max-dim` CLI，并在结果 `meta` 中记录 `method/reduced_shape/domination_steps` 等观测字段。
+  - 小矩阵路径自动为裁剪动作回填 0 权重，并透出 `original_index_map`、`original_action_count_pre_reduction`，导出器 `tools/export_policy.py` 相应补齐“回填 + 元信息保留”逻辑。
+  - 新增 `tools/numerics.py` 统一数值容差，配套测试 `tests/test_small_matrix_lp.py` 全量覆盖解析精度、劣汰/去重、矩形矩阵、CLI 优先级与零矩阵退化路径；`test_policy_export.py` 验证元数据导出。
+
+> （若有后续需要观察）小矩阵路径目前以裁剪回填为主，后续如需更细粒度的重复策略合并或遥测增强，可在 Review 文档追加跟进。
 
 #### 任务 G7：端到端流水线验证与产物审计（覆盖率/一致性/可复现）
 - 先写的测试
