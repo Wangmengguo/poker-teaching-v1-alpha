@@ -1,21 +1,21 @@
 {
-  "backend": "linprog",
-  "value": 0.02857142857142857,
+  "backend": "small",
+  "value": 0.028571428571428574,
   "strategy": {
-    "bet": 0.14285714285714285,
-    "check": 0.8571428571428571
+    "bet": 0.4285714285714286,
+    "check": 0.5714285714285714
   },
   "dual_prices": {
-    "fold": 0.4285714285714286,
-    "call": 0.5714285714285714
+    "fold": 0.1428571428571428,
+    "call": 0.8571428571428572
   },
   "meta": {
     "status": "optimal",
-    "message": "Optimization terminated successfully. (HiGHS Status 7: Optimal)",
-    "iterations": 2,
-    "objective": -0.02857142857142857,
-    "seed": 123,
-    "selected_backend": "linprog",
+    "message": "small-analytic-2x2",
+    "iterations": 0,
+    "objective": 0.0,
+    "seed": 42,
+    "selected_backend": "small",
     "hero_actions": [
       "bet",
       "check"
@@ -24,19 +24,116 @@
       "fold",
       "call"
     ],
-    "warnings": [
-      "HiGHS backend not available"
+    "warnings": [],
+    "solver_backend": "small",
+    "tree_hash": "73bb6e0b09e0e06b",
+    "node_count": 3,
+    "lp_value": 0.028571428571428574,
+    "method": "analytic",
+    "reduced_shape": [
+      2,
+      2
     ],
-    "dual_residual": [
-      0.0,
-      0.0
+    "domination_steps": 0,
+    "original_shape": [
+      2,
+      2
     ],
-    "dual_marginals_raw": [
-      -0.5714285714285714,
-      -0.4285714285714286
+    "hero_index_map": [
+      1,
+      0
     ],
-    "eq_marginals": [
-      -0.02857142857142857
-    ]
-  }
+    "villain_index_map": [
+      1,
+      0
+    ],
+    "degenerate": false,
+    "small_engine_used": true,
+    "original_action_count_pre_reduction": 2,
+    "original_response_count_pre_reduction": 2
+  },
+  "nodes": [
+    {
+      "node_key": "preflop/single_raised/role:pfr/ip/texture:na/spr:mid/bucket:0",
+      "street": "preflop",
+      "pot_type": "single_raised",
+      "role": "pfr",
+      "pos": "ip",
+      "texture": "na",
+      "spr": "mid",
+      "bucket": 0,
+      "actions": [
+        {
+          "action": "bet",
+          "size_tag": "2.5x",
+          "weight": 0.4285714285714286
+        },
+        {
+          "action": "check",
+          "size_tag": null,
+          "weight": 0.5714285714285714
+        }
+      ],
+      "meta": {
+        "original_index_map": [
+          1,
+          0
+        ],
+        "original_action_count_pre_reduction": 2,
+        "reduced_shape": [
+          2,
+          2
+        ],
+        "domination_steps": 0,
+        "original_actions": [
+          "bet",
+          "check"
+        ]
+      }
+    },
+    {
+      "node_key": "flop/single_raised/role:caller/oop/texture:dry/spr:mid/bucket:4",
+      "street": "flop",
+      "pot_type": "single_raised",
+      "role": "caller",
+      "pos": "oop",
+      "texture": "dry",
+      "spr": "mid",
+      "bucket": 4,
+      "actions": [
+        {
+          "action": "bet",
+          "size_tag": "33",
+          "weight": 0.0
+        },
+        {
+          "action": "check",
+          "size_tag": null,
+          "weight": 1.0
+        }
+      ]
+    },
+    {
+      "node_key": "turn/single_raised/role:pfr/ip/texture:semi/spr:low/bucket:2",
+      "street": "turn",
+      "pot_type": "single_raised",
+      "role": "pfr",
+      "pos": "ip",
+      "texture": "semi",
+      "spr": "low",
+      "bucket": 2,
+      "actions": [
+        {
+          "action": "bet",
+          "size_tag": "75",
+          "weight": 0.4
+        },
+        {
+          "action": "check",
+          "size_tag": null,
+          "weight": 0.6
+        }
+      ]
+    }
+  ]
 }

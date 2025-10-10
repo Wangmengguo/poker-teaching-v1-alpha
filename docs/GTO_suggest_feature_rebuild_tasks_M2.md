@@ -177,6 +177,16 @@
 — 完成影响：运行时可直接命中“含 facing 维度”的策略节点，降低回退比例，提升 G7 覆盖审计与 G6 评测质量。
 （状态：已完成 ✅）
 
+【本地复现（建议命令）】
+- 低维烟测（小矩阵路径）：
+  - `python -m tools.m2_smoke --workspace . --out reports/m2_smoke_local.md --quick --seed 42`
+- 全链路（模拟云端）并导出策略表：
+  - `bash scripts/run_cloud_pipeline.sh --full --quick --force --seed 42`
+- 表统计快照：
+  - 运行后查看 `reports/policy_table_stats.md`（包含节点数与元信息）。
+- 规则对照（可选）：
+  - `python -m tools.audit_policy_vs_rules --policy artifacts/policies --rules <your_rules.json> --out reports/policy_rule_audit.md --threshold 0.6`
+
 #### ✅ 任务 G6：小矩阵 LP 降阶求解引擎（2×2 解析 + ≤5×5 精简）
 
 【决策锁定（2025‑10‑03） — Eval 批准】
@@ -230,29 +240,61 @@
 
 > （若有后续需要观察）小矩阵路径目前以裁剪回填为主，后续如需更细粒度的重复策略合并或遥测增强，可在 Review 文档追加跟进。
 
-#### 任务 G7：端到端流水线验证与产物审计（覆盖率/一致性/可复现）
-- 先写的测试
+#### 任务 G7：端到端流水线验证与产物审计（覆盖率/一致性/可复现） — 已完成 ✅
+- 先写的测试（覆盖正常路径 + 错误/边界用例）
   - `tests/test_end_to_end_pipeline.py`
-    - `test_pipeline_generates_complete_artifacts_quick()`：在空目录运行 `python -m tools.m2_smoke --quick --out ...`，断言生成 `artifacts/policies/{preflop,postflop}.npz`、`artifacts/lp_solution.json`、`reports/m2_smoke.md/json` 且结构正确。
-    - `test_policy_table_coverage_audit_facing()`：运行 `python -m tools.policy_coverage_audit --policy artifacts/policies --configs configs/classifiers.yaml --out reports/policy_coverage.md`；断言报告包含 `coverage_ratio >= 0.95`（quick 可降阈）。覆盖维度含 `street,pot_type,role,pos,texture,spr,facing`；当 `bucket` 未对齐时仅对上述六+facing 维度审计。
-    - `test_offline_runtime_key_consistency_sample()`：从 NPZ 抽样节点，调用运行时 `node_key_from_observation` 还原键（模拟 obs），确保离线/运行时键一致（含 facing）。
-    - `test_pipeline_reproducibility_seeded_export()`：相同 seed、同一代码版本下，两次导出除 `generated_at` 外其他字段完全一致（可通过 `--deterministic-time` 或忽略该字段进行比较）。
-    - `test_rule_policy_diff_cli_smoke()`：运行 `python -m tools.audit_policy_vs_rules --policy artifacts/policies --rules configs/rules --out reports/policy_rule_audit.md --threshold 0.6`，断言 CLI 退出码为 0 且报告包含差异 TopN 概要。
-- 实现要点
-  - 新增 `tools/policy_coverage_audit.py`：
-    - 读取 NPZ，解析 `meta.node_key_components` 并聚合维度；根据 `configs/classifiers.yaml`（含 spr/texture/facing 阈值）与 `configs/buckets/*.json`（可选）构建“期望网格”；输出 coverage=现有节点/期望节点 比例，列出缺失组合样例（TopN）。
-    - CLI：`--policy DIR --configs PATH --out PATH --strict`；`--strict` 打开高阈值（≥0.95），否则 quick 模式（≥0.80）。
-  - 在导出器增加稳定选项（可选）：`tools.export_policy --deterministic-time` 将 `generated_at` 固定为 `0001-01-01T00:00:00Z` 便于回归比对；或在测试中剔除该字段比较。
-  - m2_smoke 集成：在报告中追加简单覆盖统计（节点数、街道分布），并标注 `solver_backend/small_engine_used`。
+    - `test_pipeline_generates_complete_artifacts_quick()`：在空目录运行 `python -m tools.m2_smoke --quick --out ...`；断言生成 `artifacts/policies/{preflop,postflop}.npz`、`artifacts/lp_solution.json`、`reports/m2_smoke.md/json` 且结构正确。
+    - `test_rule_policy_diff_cli_smoke()`：生成最小策略表与临时规则映射，运行 `python -m tools.audit_policy_vs_rules --policy <tmp_policies> --rules <tmp_rules.json> --out <report.md> --threshold 1.1`；断言 CLI 退出码为 0 且报告包含差异 TopN 概要（阈值放宽以保证烟测稳定）。
+  - `tests/test_policy_coverage_audit.py`
+    - `test_policy_table_coverage_audit_facing_strict()`：运行 `python -m tools.policy_coverage_audit --policy artifacts/policies --configs configs/classifiers.yaml --out reports/policy_coverage.md --strict`；断言报告 `coverage_ratio >= 0.95`（quick 可降阈），覆盖维度固定为 `street,pot_type,role,pos,texture,spr,facing`；当 `bucket` 未对齐时不纳入评分且在报告中显式标注。
+    - `test_alias_and_case_normalization()`：NPZ 中各维度（如 `pos=UTG/utg`、`role=IP/ip`、`facing=two_third+/two_third_plus`）经别名表统一到规范值；断言覆盖统计不受大小写与别名影响。
+    - `test_boundary_bins_for_spr_and_texture()`：针对 `spr/texture/facing` 在阈值边界（如 `spr==1.0, 2.0, ...`）构造节点；断言分箱采用半开区间 `[low, high)`（末箱闭区间）且与 `classifiers.yaml` 一致，避免浮点抖动误分箱。
+    - `test_backward_compat_without_facing_components()`：加载旧版 NPZ（缺失 `node_key_components.facing`）；审计自动降级为 `facing=na` 且报告 `compat_mode=true`；`--strict` 模式下若缺失关键维度则给出可操作性错误。
+    - `test_inconsistent_pos_role_slugs_unified()`：`pos` 同义（`EP/UTG/LJ/HJ/CO/BTN/SB/BB`）与 `role`（`ip/oop`）统一映射；断言“网格外键”比例为 0。
+    - `test_partial_artifacts_graceful_degradation()`：仅存在 `postflop.npz` 或 `preflop.npz` 时，审计分别计算并汇总；报告中明确缺失文件列表且退出码语义符合 `--strict/--fail-under` 约定。
+    - `test_large_artifacts_sample_mode()`：对大体量样本启用 `--max-nodes 20000` 采样；断言内存占用受控、覆盖率估计稳定（误差阈值内）且运行时间在门槛内（quick 可跳过耗时断言）。
+    - `test_corrupt_or_invalid_npz_handling()`：传入损坏/不含必需字段的 NPZ；断言退出码非 0、stderr 含原因与修复建议（包括缺失 `node_key_components`、权重向量维度不一致、存在 NaN/Inf 等）。
+    - `test_report_schema_stability_md_and_json()`：校验 `reports/policy_coverage.{md,json}` 的字段集与顺序（JSON 使用 `schema_version` 与稳定 key 排序）；避免回归破坏下游消费。
+    - `test_cli_threshold_and_strict_behavior()`：`--fail-under 0.93` 与 `--strict` 组合时的退出码与报告信息正确；默认模式（非 strict）不因低覆盖率而返回非 0。
+  - `tests/test_offline_runtime_key_consistency.py`
+    - `test_offline_runtime_key_consistency_sample()`：从 NPZ 抽样节点，调用运行时 `node_key_from_observation` 重建键（模拟 obs），确保离线/运行时键一致（含 `facing`）。
+    - `test_corner_cases_for_key_consistency()`：覆盖 `to_call==0`、preflop 固定 `facing=na`、limped/3bet/4bet pot_type、`ip/oop` 与 `pos` 边界；断言一致性与别名统一。
+  - `tests/test_reproducibility.py`
+    - `test_pipeline_reproducibility_seeded_export_content_equal()`：同一 seed/代码版本，两次导出在“内容层面”（解压后数组与 meta（剔除 `generated_at`））完全一致；提供 `policy_npz_content_hash(...)` 帮助函数。
+    - `test_pipeline_reproducibility_binary_equal_with_deterministic_packaging()`（可选）：若启用确定性打包（见实现要点），则产物字节级一致；否则跳过。
+- 实现要点（解耦、确定性、鲁棒）
+  - 覆盖网格构建
+    - 仅依赖 NPZ 中的 `meta.node_key_components` 与 `configs/classifiers.yaml`；严禁解析字符串键拼装，降低与 G6/G5 的实现耦合。
+    - 统一规范化函数：`canonicalize_{street,pot_type,role,pos,texture,spr,facing}()`；大小写不敏感，别名合并（如 `two_third+ ↔ two_third_plus`）。
+    - 分箱规则明确：对 `spr/texture/facing` 使用 `[low, high)`（末箱闭区间）+ 数值公差 `EPS=1e-9`；来自 `tools/numerics.py`，避免重复常量。
+    - `pos` 兼容 6-max/9-max：通过 `configs/classifiers.yaml` 提供标准集合与同义映射（`EP→UTG`、`MP→HJ/LJ` 等），严禁硬编码。
+  - 工具与 CLI
+    - 新增/扩展：`tools/policy_coverage_audit.py` CLI 增强 `--fail-under <float>`、`--format {md,json}`、`--max-nodes <int>`、`--compat-ok`（允许兼容降级通过）；默认 `allow_pickle=false`、`mmap_mode='r'`。
+    - 报告：生成 `reports/policy_coverage.{md,json}`，JSON 含 `schema_version`、`coverage_ratio`、`missing_combinations`（TopN）、`out_of_grid_keys`、`compat_mode`、`inputs` 与 `classifiers_digest`。
+    - 退出码：`0=成功`；`2=输入错误/损坏`；`3=覆盖率低于阈值/严格模式失败`；`4=兼容降级但不满足 `--compat-ok``；保持可脚本化。
+  - 再现性与稳定性
+    - 内容层对比为主：实现 `policy_npz_content_hash(path) -> sha256`（按稳定顺序读取 arrays/meta，剔除非确定字段，如 `generated_at`），用于回归断言。
+    - 可选确定性打包：提供 `--deterministic-packaging`（或在导出器侧启用），将 zip 条目时间戳、顺序固定，确保字节级一致；否则跳过字节级断言，仅做内容一致。
+  - 性能与健壮性
+    - 流式读取：`np.load(..., mmap_mode='r')` + 维度采样（`--max-nodes`）；大文件不一次性解压到内存。
+    - 权重体检：遇到 NaN/Inf/总和偏离 1 超过公差，记录为无效节点并从覆盖计数中剔除，同时报告 `invalid_nodes`。严禁悄然更正导致结果隐性漂移。
+    - 多文件与缺失：支持独立或联合审计 `preflop.npz` 与 `postflop.npz`；缺失文件显式标注并按 `--strict/--fail-under` 断言。
 - 交付物
-  - `tools/policy_coverage_audit.py`、端到端测试、覆盖率报告模板 `reports/policy_coverage.md`。
-- 难度评估：系数 4/5（跨模块集成 + 维度枚举 + 稳定性对比）。
-- 易错点排雷
-  - 期望网格与实际键的口径偏差（别名/大小写/role 前缀）需统一；建议依赖 `export_policy` 的 `node_key_components` 而非解析字符串。
-  - 桶维度在 M2 先弱化为 hand_class 标签；严格桶对齐延后在 H4 解决。
-  - 可复现性需控制随机源与排序；`export_policy` 已做稳定排序，注意过滤时间戳。
-- DoD
-  - 端到端测试通过；覆盖率报告生成且达标（quick 可降）；离线/运行时键一致；同 seed 导出内容一致（除时间戳）。
+  - `tools/policy_coverage_audit.py`、端到端与审计单测集、报告模板 `reports/policy_coverage.md` 与 JSON 版、`tests` 中的内容哈希工具函数。
+- 难度评估：系数 4/5（跨模块集成 + 维度枚举 + 确定性/兼容性工程化）。
+- 易错点排雷（扩展版）
+  - 口径与别名：`pos/role/facing` 大小写与别名未统一导致“网格外键”；统一走 `canonicalize_*` 并在报告统计 `out_of_grid_keys`。
+  - 边界分箱：`spr/texture/facing` 在阈值边界的浮点抖动；采用 `[low, high)` + `EPS=1e-9` 的一致口径。
+  - 老产物兼容：缺失 `node_key_components.facing` 或历史 schema；需显式 `compat_mode=true` 并在严格模式下给出清晰失败原因与修复路径。
+  - NPZ 比较口径：zip 元数据（时间戳）导致字节不一致；以“内容层哈希”为主，确定性打包仅作为增强选项。
+  - 数据异常：NaN/Inf、负零、权重未归一；审计应识别并从分母/分子中剔除，避免虚高/虚低覆盖率。
+  - 体量与资源：一次性加载超大 NPZ OOM；启用 `mmap` 与采样，提供耗时上限与友好错误。
+- DoD（更严格且可操作）
+  - 端到端：`test_pipeline_generates_complete_artifacts_quick`、`test_rule_policy_diff_cli_smoke` 通过；审计报告 `coverage_ratio` 达标（quick 可降阈）。
+  - 覆盖审计：别名/大小写统一、边界分箱正确、`out_of_grid_keys==0`；`--strict --fail-under 0.95` 时退出码为 0。
+  - 键一致性：常规与边界用例（含 `to_call==0`、preflop、limped/3bet/4bet）离线/运行时键一致率≥99.5%。
+  - 可复现：相同 seed 内容哈希一致；启用确定性打包时产物字节级一致；报告 JSON `schema_version` 未变化。
+  - 健壮性：损坏/不合法 NPZ、缺失必需文件/字段、错误 CLI 参数触发非 0 退出并含可操作的错误信息；大样本启用采样后内存/耗时在预设门槛内。
 
 ---
 

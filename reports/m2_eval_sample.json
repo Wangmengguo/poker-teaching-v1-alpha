@@ -3,6 +3,6 @@
     "preflop": 1,
     "postflop": 2
   },
-  "solver_backend": "linprog",
+  "solver_backend": "small",
   "quick_mode": true
 }
