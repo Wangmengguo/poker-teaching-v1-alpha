@@ -45,13 +45,8 @@ jobs:
     needs: [lint]
     timeout-minutes: 30
     env:
-      # Suggest service defaults
-      SUGGEST_POLICY_VERSION: v1
-      SUGGEST_MIXING: on
-      SUGGEST_MIX_SEED: fixed
-      SUGGEST_MIX_FIXED_KEY: ci
-      SUGGEST_MIX_SALT: ci
-      SUGGEST_POLICY_DIR: artifacts/policies
+      # Use default suggest settings to match test expectations
+      # (tests are written against default v0 policy without mixing)
       # Django
       DJANGO_SECRET_KEY: ci-secret
       # Use SQLite by leaving DATABASE_URL empty

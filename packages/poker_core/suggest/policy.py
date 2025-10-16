@@ -1022,6 +1022,47 @@ def policy_flop_v1(
                         meta.update(decision_meta)
                         rationale.extend(decision_rationale)
                         return suggested, rationale, "flop_v1", meta
+                    # idx == 0: decline call in mixing → fold before global fallback
+                    if find_action(acts, "fold"):
+                        rationale.append(
+                            R(
+                                SCodes.PL_FOLD_POTODDS,
+                                data={
+                                    "facing": fst,
+                                    "pot_odds": round(pot_odds, 3),
+                                    "hand_class": hand_class,
+                                    "src": "mix_decline",
+                                },
+                            )
+                        )
+                        decision = Decision(action="fold", meta={})
+                        suggested, decision_meta, decision_rationale = decision.resolve(
+                            obs, acts, cfg
+                        )
+                        meta.update(decision_meta)
+                        rationale.extend(decision_rationale)
+                        return suggested, rationale, "flop_v1", meta
+                else:
+                    # Mixing is off: treat the window as a fold by default to avoid over-defending
+                    if find_action(acts, "fold"):
+                        rationale.append(
+                            R(
+                                SCodes.PL_FOLD_POTODDS,
+                                data={
+                                    "facing": fst,
+                                    "pot_odds": round(pot_odds, 3),
+                                    "hand_class": hand_class,
+                                    "src": "mix_off",
+                                },
+                            )
+                        )
+                        decision = Decision(action="fold", meta={})
+                        suggested, decision_meta, decision_rationale = decision.resolve(
+                            obs, acts, cfg
+                        )
+                        meta.update(decision_meta)
+                        rationale.extend(decision_rationale)
+                        return suggested, rationale, "flop_v1", meta
 
             # 3) Default fold when price is too bad (pot_odds > fold_floor)
             if pot_odds > fold_floor and find_action(acts, "fold"):
