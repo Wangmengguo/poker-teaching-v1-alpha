@@ -493,7 +493,8 @@ def _policy_source_flag() -> str:
 
 def _choose_policy_version(hand_id: str) -> str:
     """返回 'v0' 或 'v1'（PR-0 中 v1 与 v0 行为一致，仅用于灰度管控与调试展示）。"""
-    mode = (os.getenv("SUGGEST_POLICY_VERSION") or "v0").strip().lower()
+    # Default to v1 so defense logic (preflop vs shove, flop/river fallbacks) is active by default
+    mode = (os.getenv("SUGGEST_POLICY_VERSION") or "v1").strip().lower()
     if mode in {"v0", "v1", "v1_preflop"}:  # v1_preflop 在 PR-0 等同 v1
         return "v1" if mode != "v0" else "v0"
     if mode == "auto":

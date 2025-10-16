@@ -32,6 +32,25 @@ def canonical_facing_tag(value: Any) -> str:
     return "na"
 
 
+# Map internal hand_class labels to table-friendly labels used by NPZ policies.
+_HAND_ALIASES_POSTFLOP = {
+    # 6-bucket → NPZ 8-bucket近似映射
+    "overpair_or_top_pair_strong": "overpair_or_tptk",
+    "top_pair_weak_or_second_pair": "top_pair_weak_or_second",
+    "middle_pair_or_third_pair_minus": "middle_pair_or_third_minus",
+    "weak_draw_or_air": "weak_draw",
+}
+
+
+def _canonical_hand_for_table(street: str, hand_class: Any) -> str:
+    text = _slug(hand_class) or "unknown"
+    st = (street or "").lower()
+    if st in {"flop", "turn", "river"}:
+        if text in _HAND_ALIASES_POSTFLOP:
+            return _HAND_ALIASES_POSTFLOP[text]
+    return text
+
+
 def _slug(value: Any) -> str:
     text = str(value or "").strip().lower()
     if not text:
@@ -50,13 +69,14 @@ def node_key_from_observation(obs: Observation) -> str:
         texture = "na"
 
     spr_label = classify_spr_bin(None, getattr(obs, "spr_bucket", None))
+    if street == "preflop":
+        # Preflop 表约定不区分 SPR；保持 'spr=na' 以匹配 NPZ 键
+        spr_label = "na"
 
     facing_raw = getattr(obs, "facing_size_tag", None)
     facing = canonical_facing_tag(facing_raw)
-    if street == "preflop":
-        facing = "na"
 
-    hand_class = _slug(getattr(obs, "hand_class", "unknown")) or "unknown"
+    hand_class = _canonical_hand_for_table(street, getattr(obs, "hand_class", "unknown"))
 
     parts = [
         street,

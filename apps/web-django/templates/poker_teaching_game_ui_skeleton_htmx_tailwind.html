@@ -429,5 +429,12 @@
     <script src="/static/js/theme-toggle.js"></script>
     <!-- CardMeister Web Component for card visuals -->
     <script src="/static/vendor/cardmeister/elements.cardmeister.min.js"></script>
+
+    {# 页面加载后若轮到机器人，自动触发一次走子 #}
+    {% if auto_bot %}
+      {% include "ui/_autoplay_trigger.html" with hand_id=hand_id user_actor=user_actor %}
+    {% else %}
+      <div id="bot-autoplay-trigger" class="hidden"></div>
+    {% endif %}
   </body>
 </html>

@@ -12,6 +12,7 @@ from .views_play import session_next_api
 from .views_play import session_start_api
 from .views_play import session_state_api
 from .views_suggest import SuggestView
+from .views_ui import ui_bot_auto
 from .views_ui import ui_coach_suggest
 from .views_ui import ui_game_view
 from .views_ui import ui_hand_act
@@ -43,5 +44,6 @@ urlpatterns = [
     path("ui/hand/<str:hand_id>/act", ui_hand_act, name="ui_hand_act"),
     path("ui/session/<str:session_id>/next", ui_session_next, name="ui_session_next"),
     path("ui/coach/<str:hand_id>/suggest", ui_coach_suggest, name="ui_coach_suggest"),
+    path("ui/bot/<str:hand_id>/auto", ui_bot_auto, name="ui_bot_auto"),
     path("ui/prefs/teach", ui_toggle_teach, name="ui_toggle_teach"),
 ]
