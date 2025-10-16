@@ -204,13 +204,14 @@ def _build_observation_common(
         combo = None
 
     # Flop-specific hand class override & advantages
-    if street == "flop":
+    if street in {"flop", "turn", "river"}:
         try:
+            # 统一使用翻牌分类作为 postflop 语义分层（与表键保持一致）
             hand_class = infer_flop_hand_class_from_gs(gs, actor)
         except Exception:
             pass
-        range_adv = bool(range_advantage(board_texture, role))
-        nut_adv = bool(nut_advantage(board_texture, role))
+        range_adv = bool(range_advantage(board_texture, role)) if street == "flop" else False
+        nut_adv = bool(nut_advantage(board_texture, role)) if street == "flop" else False
     else:
         range_adv = False
         nut_adv = False

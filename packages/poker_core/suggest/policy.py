@@ -7,7 +7,9 @@ preflop_v0, postflop_v0_3, preflop_v1
 
 from __future__ import annotations
 
+import json
 import os
+from functools import lru_cache
 from math import isfinite
 from typing import Any
 
@@ -28,9 +30,12 @@ from .turn_river_rules import get_river_rules
 from .turn_river_rules import get_turn_rules
 from .types import Observation
 from .types import PolicyConfig
+from .utils import HC_MID_OR_THIRD_MINUS
 from .utils import HC_OP_TPTK
 from .utils import HC_STRONG_DRAW
+from .utils import HC_TOP_WEAK_OR_SECOND
 from .utils import HC_VALUE
+from .utils import HC_WEAK_OR_AIR
 from .utils import find_action
 from .utils import pick_betlike_action
 from .utils import stable_weighted_choice
@@ -344,6 +349,28 @@ def policy_preflop_v1(
     pot_now = int(getattr(obs, "pot_now", 0))
     price = _pot_odds(to_call, pot_now)
 
+    # 0) Preflop vs shove (pure call/fold state)
+    try:
+        from .policy_preflop import decide_preflop_vs_shove
+
+        d0 = decide_preflop_vs_shove(obs, ctx, cfg)
+    except Exception:
+        d0 = None
+    if d0:
+        suggested, decision_meta, decision_rationale = d0.resolve(obs, acts, cfg)
+        return suggested, rationale + decision_rationale, "preflop_v1", dict(decision_meta)
+
+    # 0.5) Preflop exploit: when first-in and vs_allin profile, jam first with high-equity hands
+    try:
+        from .policy_preflop import decide_preflop_exploit_firstin_allin
+
+        d_ex = decide_preflop_exploit_firstin_allin(obs, ctx, cfg)
+    except Exception:
+        d_ex = None
+    if d_ex:
+        suggested, decision_meta, decision_rationale = d_ex.resolve(obs, acts, cfg)
+        return suggested, rationale + decision_rationale, "preflop_v1", dict(decision_meta)
+
     decision = decide_sb_vs_threebet(obs, ctx, cfg)
     if decision:
         suggested, decision_meta, decision_rationale = decision.resolve(obs, acts, cfg)
@@ -460,11 +487,21 @@ def _match_rule_with_trace(
 
 
 def _mixing_enabled() -> bool:
-    return (os.getenv("SUGGEST_MIXING") or "off").strip().lower() == "on"
+    # Default to on so agents aren't trivially exploitable by fixed frequencies
+    return (os.getenv("SUGGEST_MIXING") or "on").strip().lower() == "on"
 
 
 def _mix_seed_base(obs: Observation) -> str:
+    """Return deterministic base key for mixing.
+
+    Modes (via SUGGEST_MIX_SEED):
+    - hand (default): use hand_id
+    - session: prefer session_id/config_profile/strategy_name if available
+    - fixed: use SUGGEST_MIX_FIXED_KEY (or 'fixed') — ideal for CI determinism
+    """
     mode = (os.getenv("SUGGEST_MIX_SEED") or "hand").strip().lower()
+    if mode == "fixed":
+        return str(os.getenv("SUGGEST_MIX_FIXED_KEY") or "fixed")
     if mode == "session":
         ctx = getattr(obs, "context", None)
         profile = getattr(ctx, "profile", None) if ctx is not None else None
@@ -538,6 +575,9 @@ def _select_action_from_node(
         if _mixing_enabled():
             seed_base = _mix_seed_base(obs)
             seed_key = f"{seed_base}:{node_key}" if seed_base else node_key or "mix"
+            salt = os.getenv("SUGGEST_MIX_SALT")
+            if salt:
+                seed_key = f"{seed_key}:salt={salt}"
             idx = stable_weighted_choice(seed_key, weights)
             idx = max(0, min(idx, len(arms) - 1))
             meta["frequency"] = normalized[idx]
@@ -893,11 +933,139 @@ def policy_flop_v1(
         rationale.append(R(SCodes.FL_RAISE_SEMI_BLUFF))
         rationale.extend(decision_rationale)
         return suggested, rationale, "flop_v1", meta
-    if fst == "two_third+" and find_action(acts, "fold"):
+    # vs large sizes (includes overbet/jam by our tag convention):
+    # - Soften overfolding: allow call with mid/second pairs up to a higher pot-odds ceiling
+    # - Optional deterministic mixing for bluff-catch frequency
+    if fst == "two_third+":
         hand_class = getattr(obs, "hand_class", "")
         strong_classes = {HC_VALUE, HC_STRONG_DRAW, HC_OP_TPTK}
         if hand_class not in strong_classes and not bool(meta["nut_adv"]):
-            if pot_odds > 0.40:
+            # thresholds are intentionally higher than 0.40 to avoid trivial exploit (jam → fold)
+            try:
+                call_ceil = float(os.getenv("SUGGEST_FLOP_CALL_VS_LARGE_POTODDS", "0.50"))
+            except Exception:
+                call_ceil = 0.50
+            try:
+                fold_floor = float(os.getenv("SUGGEST_FLOP_FOLD_VS_LARGE_POTODDS", "0.55"))
+            except Exception:
+                fold_floor = 0.55
+
+            # 0) Weak/air: only defend at very favorable price, otherwise fold
+            # Aligns with teaching intent and prevents overcalling vs jam-sized bets
+            try:
+                weak_call_ceil = float(os.getenv("SUGGEST_FLOP_WEAK_CALL_VS_LARGE_POTODDS", "0.30"))
+            except Exception:
+                weak_call_ceil = 0.30
+            if hand_class == HC_WEAK_OR_AIR:
+                if pot_odds <= weak_call_ceil and find_action(acts, "call"):
+                    decision = Decision(action="call", meta={})
+                    suggested, decision_meta, decision_rationale = decision.resolve(obs, acts, cfg)
+                    meta.update(decision_meta)
+                    rationale.extend(decision_rationale)
+                    return suggested, rationale, "flop_v1", meta
+                if find_action(acts, "fold"):
+                    rationale.append(
+                        R(
+                            SCodes.PL_FOLD_POTODDS,
+                            data={
+                                "facing": fst,
+                                "pot_odds": round(pot_odds, 3),
+                                "hand_class": hand_class,
+                            },
+                        )
+                    )
+                    decision = Decision(action="fold", meta={})
+                    suggested, decision_meta, decision_rationale = decision.resolve(obs, acts, cfg)
+                    meta.update(decision_meta)
+                    rationale.extend(decision_rationale)
+                    return suggested, rationale, "flop_v1", meta
+
+            # 1) Deterministic light defend for mid/second pairs when price ≤ call_ceil
+            if pot_odds <= call_ceil and hand_class in {
+                HC_TOP_WEAK_OR_SECOND,
+                HC_MID_OR_THIRD_MINUS,
+            }:
+                if find_action(acts, "call"):
+                    decision = Decision(action="call", meta={})
+                    suggested, decision_meta, decision_rationale = decision.resolve(obs, acts, cfg)
+                    meta.update(decision_meta)
+                    rationale.extend(decision_rationale)
+                    return suggested, rationale, "flop_v1", meta
+
+            # 2) Optional mixing: bluff-catch some fraction between call_ceil..fold_floor
+            if call_ceil < pot_odds <= fold_floor and find_action(acts, "call"):
+                # base probabilities by class; gently nudge with MDF
+                base = 0.15
+                if hand_class == HC_TOP_WEAK_OR_SECOND:
+                    base = 0.45
+                elif hand_class == HC_MID_OR_THIRD_MINUS:
+                    base = 0.30
+                # add small MDF-driven bump (0..+0.1)
+                try:
+                    mdf_val = float(meta.get("mdf", 0.5))
+                except Exception:
+                    mdf_val = 0.5
+                p = max(0.10, min(base + max(0.0, (mdf_val - 0.5)) * 0.2, 0.60))
+                if _mixing_enabled():
+                    seed_base = _mix_seed_base(obs)
+                    seed_key = f"defend_large:{seed_base}:{meta.get('facing_size_tag')}:to={to_call}:pot={pot_now}:{obs.combo}"
+                    # choose call with probability p
+                    salt = os.getenv("SUGGEST_MIX_SALT")
+                    if salt:
+                        seed_key = f"{seed_key}:salt={salt}"
+                    idx = stable_weighted_choice(seed_key, [1.0 - p, p])
+                    if idx == 1:
+                        decision = Decision(action="call", meta={})
+                        suggested, decision_meta, decision_rationale = decision.resolve(
+                            obs, acts, cfg
+                        )
+                        meta.update(decision_meta)
+                        rationale.extend(decision_rationale)
+                        return suggested, rationale, "flop_v1", meta
+                    # idx == 0: decline call in mixing → fold before global fallback
+                    if find_action(acts, "fold"):
+                        rationale.append(
+                            R(
+                                SCodes.PL_FOLD_POTODDS,
+                                data={
+                                    "facing": fst,
+                                    "pot_odds": round(pot_odds, 3),
+                                    "hand_class": hand_class,
+                                    "src": "mix_decline",
+                                },
+                            )
+                        )
+                        decision = Decision(action="fold", meta={})
+                        suggested, decision_meta, decision_rationale = decision.resolve(
+                            obs, acts, cfg
+                        )
+                        meta.update(decision_meta)
+                        rationale.extend(decision_rationale)
+                        return suggested, rationale, "flop_v1", meta
+                else:
+                    # Mixing is off: treat the window as a fold by default to avoid over-defending
+                    if find_action(acts, "fold"):
+                        rationale.append(
+                            R(
+                                SCodes.PL_FOLD_POTODDS,
+                                data={
+                                    "facing": fst,
+                                    "pot_odds": round(pot_odds, 3),
+                                    "hand_class": hand_class,
+                                    "src": "mix_off",
+                                },
+                            )
+                        )
+                        decision = Decision(action="fold", meta={})
+                        suggested, decision_meta, decision_rationale = decision.resolve(
+                            obs, acts, cfg
+                        )
+                        meta.update(decision_meta)
+                        rationale.extend(decision_rationale)
+                        return suggested, rationale, "flop_v1", meta
+
+            # 3) Default fold when price is too bad (pot_odds > fold_floor)
+            if pot_odds > fold_floor and find_action(acts, "fold"):
                 rationale.append(
                     R(
                         SCodes.PL_FOLD_POTODDS,
@@ -986,6 +1154,27 @@ def _policy_postflop_generic(
         river_ctx = analyze_river_context(obs)
         meta["river_value_tier"] = river_ctx.get("tier", "unknown")
         meta["river_blockers"] = list(river_ctx.get("blockers") or [])
+
+    # Optional river defense config (JSON overrides)
+    @lru_cache(maxsize=4)
+    def _river_defense_cfg(path: str) -> dict:
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+                return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    def _get_river_defense() -> dict:
+        override = os.getenv("SUGGEST_RIVER_DEFENSE_FILE")
+        if override:
+            return _river_defense_cfg(override)
+        default_path = os.path.join(
+            os.getenv("SUGGEST_CONFIG_DIR")
+            or os.path.join("packages", "poker_core", "suggest", "config"),
+            "river_defense.json",
+        )
+        return _river_defense_cfg(default_path)
 
     def _lookup_node() -> tuple[dict[str, Any] | None, str]:
         keys = [
@@ -1098,6 +1287,8 @@ def _policy_postflop_generic(
         )
     )
     if street == "river":
+        # Load river defense config once for both override and fallback paths
+        cfgd = _get_river_defense() or {}
         override = apply_river_facing_adjustment(
             river_ctx, str(meta.get("facing_size_tag") or "na")
         )
@@ -1106,6 +1297,74 @@ def _policy_postflop_generic(
                 meta["plan"] = override["plan"]
             override_action = override.get("action")
             override_size = override.get("size_tag")
+            # Soft price-based salvage against overfolding on large sizes
+            facing = str(meta.get("facing_size_tag") or "na")
+            tier = str(river_ctx.get("tier") or "unknown")
+            try:
+                med_call = float(
+                    (cfgd.get("medium", {}) or {}).get(
+                        "call_le", os.getenv("SUGGEST_RIVER_MEDIUM_CALL_POTODDS", "0.50")
+                    )
+                )
+            except Exception:
+                med_call = 0.50
+            try:
+                med_mix = float(
+                    (cfgd.get("medium", {}) or {}).get(
+                        "mix_to", os.getenv("SUGGEST_RIVER_MEDIUM_MIX_POTODDS", "0.52")
+                    )
+                )
+            except Exception:
+                med_mix = 0.52
+            try:
+                weak_call = float(
+                    (cfgd.get("weak", {}) or {}).get(
+                        "call_le", os.getenv("SUGGEST_RIVER_WEAK_CALL_POTODDS", "0.30")
+                    )
+                )
+            except Exception:
+                weak_call = 0.30
+
+            if facing == "two_third+" and override_action == "fold":
+                if tier == "strong_value" and find_action(acts, "call"):
+                    decision = Decision(action="call", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    meta["plan"] = meta.get("plan") or "河牌强价值：面对大尺吋保持跟注"
+                    return suggested, rationale + drat, f"{street}_v1", meta
+                if tier == "medium_value" and find_action(acts, "call"):
+                    if pot_odds <= med_call:
+                        decision = Decision(action="call", meta={})
+                        suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                        meta.update(dmeta)
+                        meta["plan"] = meta.get("plan") or "河牌中等价值：价格合适→跟注"
+                        return suggested, rationale + drat, f"{street}_v1", meta
+                    if med_call < pot_odds <= med_mix and _mixing_enabled():
+                        seed_key = (
+                            f"rv_defend_large:{_mix_seed_base(obs)}:{tier}:{round(pot_odds,3)}"
+                        )
+                        p = 0.35
+                        salt = os.getenv("SUGGEST_MIX_SALT")
+                        if salt:
+                            seed_key = f"{seed_key}:salt={salt}"
+                        idx = stable_weighted_choice(seed_key, [1.0 - p, p])
+                        if idx == 1:
+                            decision = Decision(action="call", meta={})
+                            suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                            meta.update(dmeta)
+                            meta["frequency"] = p
+                            meta["plan"] = meta.get("plan") or "河牌中等价值：灰区混频跟注"
+                            return suggested, rationale + drat, f"{street}_v1", meta
+                if (
+                    tier in {"weak_showdown", "air", "unknown"}
+                    and pot_odds <= weak_call
+                    and find_action(acts, "call")
+                ):
+                    decision = Decision(action="call", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    meta["plan"] = meta.get("plan") or "河牌弱摊牌价值：极佳赔率→勉强跟注"
+                    return suggested, rationale + drat, f"{street}_v1", meta
             if override_action in {"call", "fold", "check"}:
                 if override_action == "call" and find_action(acts, "call"):
                     decision = Decision(action="call", meta={})
@@ -1145,6 +1404,76 @@ def _policy_postflop_generic(
                     suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
                     meta.update(dmeta)
                     meta["size_tag"] = str(override_size)
+                    return suggested, rationale + drat, f"{street}_v1", meta
+
+        # Fallback: defend vs large river sizes using value tier when no override
+        facing = str(meta.get("facing_size_tag") or "na")
+        if facing == "two_third+":
+            tier = str(river_ctx.get("tier") or "unknown")
+            try:
+                med_call = float(os.getenv("SUGGEST_RIVER_MEDIUM_CALL_POTODDS", "0.50"))
+            except Exception:
+                med_call = 0.45
+            try:
+                med_mix = float(os.getenv("SUGGEST_RIVER_MEDIUM_MIX_POTODDS", "0.52"))
+            except Exception:
+                med_mix = 0.52
+            try:
+                weak_call = float(os.getenv("SUGGEST_RIVER_WEAK_CALL_POTODDS", "0.30"))
+            except Exception:
+                weak_call = 0.30
+
+            # Strong value: always call large bets
+            if tier == "strong_value" and find_action(acts, "call"):
+                decision = Decision(action="call", meta={})
+                suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                meta.update(dmeta)
+                meta["plan"] = meta.get("plan") or "河牌强价值：面对大尺吋保持跟注"
+                return suggested, rationale + drat, f"{street}_v1", meta
+
+            # Medium value: price-based and mixed defend
+            if tier == "medium_value" and find_action(acts, "call"):
+                if pot_odds <= med_call:
+                    decision = Decision(action="call", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    meta["plan"] = meta.get("plan") or "河牌中等价值：价格合适→跟注"
+                    return suggested, rationale + drat, f"{street}_v1", meta
+                if med_call < pot_odds <= med_mix and _mixing_enabled():
+                    seed_key = f"rv_defend_large:{_mix_seed_base(obs)}:{tier}:{round(pot_odds,3)}"
+                    p = float((cfgd.get("medium", {}) or {}).get("mix_freq", 0.35))
+                    salt = os.getenv("SUGGEST_MIX_SALT")
+                    if salt:
+                        seed_key = f"{seed_key}:salt={salt}"
+                    idx = stable_weighted_choice(seed_key, [1.0 - p, p])
+                    if idx == 1:
+                        decision = Decision(action="call", meta={})
+                        suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                        meta.update(dmeta)
+                        meta["frequency"] = p
+                        meta["plan"] = meta.get("plan") or "河牌中等价值：灰区混频跟注"
+                        return suggested, rationale + drat, f"{street}_v1", meta
+                # out of price window → fold if allowed
+                if find_action(acts, "fold"):
+                    decision = Decision(action="fold", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    meta["plan"] = meta.get("plan") or "河牌中等价值：价格过差→弃牌"
+                    return suggested, rationale + drat, f"{street}_v1", meta
+
+            # Weak showdown/air: only defend at very favorable price
+            if tier in {"weak_showdown", "air", "unknown"}:
+                if pot_odds <= weak_call and find_action(acts, "call"):
+                    decision = Decision(action="call", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    meta["plan"] = meta.get("plan") or "河牌弱摊牌价值：极佳赔率→勉强跟注"
+                    return suggested, rationale + drat, f"{street}_v1", meta
+                if find_action(acts, "fold"):
+                    decision = Decision(action="fold", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    meta["plan"] = meta.get("plan") or "河牌弱摊牌价值：大尺吋→弃牌"
                     return suggested, rationale + drat, f"{street}_v1", meta
     # value raise stub: when hand_class indicates value (inherit flop class semantics if provided)
     if (

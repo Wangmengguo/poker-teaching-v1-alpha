@@ -177,6 +177,10 @@ def _render_oob_fragments(
     coach_hand_id: str | None = None,
     log_items: list[str] | None = None,
     reveal_opp: bool | None = None,
+    # 新增：在需要时自动触发机器人走子
+    hand_id: str | None = None,
+    bot_autoplay: bool = False,
+    user_actor: int = 0,
 ) -> str:
     parts: list[str] = []
 
@@ -257,6 +261,21 @@ def _render_oob_fragments(
     if log_items is not None:
         parts.append(render_to_string("ui/_log.html", {"log": log_items}, request=request))
 
+    # 若启用自动走子：当未结束且轮到机器人时，注入一次性触发器
+    try:
+        if bot_autoplay and not show_next_controls and hand_id is not None:
+            to_act = st.get("to_act")
+            if to_act is not None and int(to_act) in (0, 1) and int(to_act) != int(user_actor):
+                parts.append(
+                    render_to_string(
+                        "ui/_autoplay_trigger.html",
+                        {"hand_id": hand_id, "user_actor": int(user_actor)},
+                        request=request,
+                    )
+                )
+    except Exception:
+        pass
+
     return "\n".join(parts)
 
 
@@ -318,6 +337,11 @@ def ui_game_view(request: HttpRequest, session_id: str, hand_id: str) -> HttpRes
         "ended_summary": ended_summary,
         "ended_reason_text": ended_reason_text,
         "last_hand_id": last_hid,
+        # 默认用户为座位0；若开局轮到机器人则在模板侧触发一次 auto
+        "user_actor": 0,
+        "auto_bot": (
+            bool(st) and st.get("street") != "complete" and st.get("to_act") not in (None, 0)
+        ),
     }
     return render(request, "poker_teaching_game_ui_skeleton_htmx_tailwind.html", ctx)
 
@@ -412,6 +436,9 @@ def ui_hand_act(request: HttpRequest, hand_id: str) -> HttpResponse:
             replay_url=f"/api/v1/ui/replay/{hand_id}" if hand_over else None,
             log_items=_log_items(gs),
             reveal_opp=bool(request.session.get("teach", True) or _ended_by_showdown(gs)),
+            hand_id=hand_id,
+            bot_autoplay=True,
+            user_actor=0,
         )
         return _oob_response(html, route=t0_route, method=method, status_label=status_label)
     finally:
@@ -625,6 +652,9 @@ def ui_session_next(request: HttpRequest, session_id: str) -> HttpResponse:
             hand_id_for_form=new_hid,
             coach_hand_id=new_hid,
             log_items=_log_items(gs_new),
+            hand_id=new_hid,
+            bot_autoplay=True,
+            user_actor=0,
         )
         # 方案A：在开始新手后，同步更新 Teach 按钮（带上新的 hand_id）
         try:
@@ -876,6 +906,106 @@ def ui_replay_view(request: HttpRequest, hand_id: str) -> HttpResponse:
         return render(request, "poker_teaching_replay.html", ctx)
     except Exception as e:
         return HttpResponse(f"Failed to load replay: {e}", status=500)
+
+
+@require_POST
+def ui_bot_auto(request: HttpRequest, hand_id: str) -> HttpResponse:
+    """Auto-step the bot until it's the user's turn or hand ends; return OOB fragments.
+
+    - Default user seat = 0. Accepts optional form fields:
+      - user_actor: {0|1} (default 0)
+      - max_steps: int (default 10)
+    """
+    t0_route = "ui/bot/auto"
+    method = "POST"
+    status_label = "200"
+    try:
+        entry = HANDS.get(hand_id)
+        if not entry or entry.get("gs") is None:
+            status_label = "404"
+            html = _render_error_only(request, "Object not found or expired")
+            return _oob_response(html, route=t0_route, method=method, status_label=status_label)
+
+        s = get_object_or_404(Session, session_id=entry.get("session_id"))
+        gs = entry["gs"]
+
+        # 已结束：直接返回结束片段
+        if _is_hand_over(gs):
+            st = snapshot_state(gs)
+            html = _render_oob_fragments(
+                request,
+                session=s,
+                st=st,
+                actions={
+                    "items": [],
+                    "amount": {"show": False, "min": 1, "max": 0, "step": 1},
+                },
+                show_next_controls=True,
+                replay_url=f"/api/v1/ui/replay/{hand_id}",
+                log_items=_log_items(gs),
+                reveal_opp=bool(request.session.get("teach", True) or _ended_by_showdown(gs)),
+            )
+            status_label = "409"
+            return _oob_response(html, route=t0_route, method=method, status_label=status_label)
+
+        # 读取参数
+        try:
+            user_actor = int(request.POST.get("user_actor", 0))
+        except Exception:
+            user_actor = 0
+        try:
+            max_steps = int(request.POST.get("max_steps", 10))
+        except Exception:
+            max_steps = 10
+
+        # 自动步进：调用建议并应用，直到轮到用户或结束或耗尽步数
+        from poker_core.suggest.service import build_suggestion
+
+        while max_steps > 0:
+            cur = getattr(gs, "to_act", None)
+            if cur is None or int(cur) == int(user_actor) or _is_hand_over(gs):
+                break
+            resp = build_suggestion(gs, int(cur))
+            sug = resp.get("suggested") or {}
+            act_name = sug.get("action")
+            amt = sug.get("amount", None)
+            # 应用动作并可能结算
+            gs = _apply_action(gs, act_name, amt)
+            gs = _settle_if_needed(gs)
+            entry["gs"] = gs
+            max_steps -= 1
+
+        # 渲染片段
+        st = snapshot_state(gs)
+        if _is_hand_over(gs):
+            # 手牌结束：持久化回放
+            from .views_play import _persist_replay
+
+            _persist_replay(hand_id, gs)
+            actions = {"items": [], "amount": {"show": False, "min": 1, "max": 0, "step": 1}}
+            show_next = True
+            replay = f"/api/v1/ui/replay/{hand_id}"
+        else:
+            actions = _actions_model(gs)
+            show_next = False
+            replay = None
+
+        html = _render_oob_fragments(
+            request,
+            session=s,
+            st=st,
+            actions=actions,
+            show_next_controls=show_next,
+            replay_url=replay,
+            log_items=_log_items(gs),
+            reveal_opp=bool(request.session.get("teach", True) or _ended_by_showdown(gs)),
+            hand_id=hand_id,
+            bot_autoplay=True,
+            user_actor=int(user_actor),
+        )
+        return _oob_response(html, route=t0_route, method=method, status_label=status_label)
+    finally:
+        pass
 
 
 @require_http_methods(["GET", "POST"])

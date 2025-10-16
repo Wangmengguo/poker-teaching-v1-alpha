@@ -1,0 +1,36 @@
+{
+  "le12": {
+    "call": [
+      "77", "88", "99", "TT", "JJ", "QQ", "KK", "AA",
+      "AJs", "AQs", "AKs", "KQs",
+      "AQo", "AKo"
+    ],
+    "mix": [
+      "AJo", "KJs", "ATs", "KQo"
+    ]
+  },
+  "13to20": {
+    "call": [
+      "TT", "JJ", "QQ", "KK", "AA",
+      "AQs", "AKs",
+      "AQo", "AKo"
+    ],
+    "mix": [
+      "AJs", "KQs"
+    ]
+  },
+  "gt20": {
+    "call": [
+      "JJ", "QQ", "KK", "AA",
+      "AKs", "AKo"
+    ],
+    "mix": [
+      "TT", "AQs", "KQs"
+    ],
+    "mix_map": {
+      "TT": 0.35,
+      "AQs": 0.30,
+      "KQs": 0.25
+    }
+  }
+}

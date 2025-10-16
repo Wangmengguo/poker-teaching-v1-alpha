@@ -1,0 +1,13 @@
+{#
+  Hidden HTMX trigger to auto-step the bot until it's the user's turn or hand ends.
+  It posts to a UI glue endpoint that returns OOB fragments to refresh the table.
+  Requires: hand_id, user_actor (int).
+#}
+<div id="bot-autoplay-trigger"
+     hx-swap-oob="true"
+     hx-post="/api/v1/ui/bot/{{ hand_id }}/auto"
+     hx-vals='{"user_actor": {{ user_actor|default:0 }}, "max_steps": 10}'
+     hx-headers='{"X-CSRFToken":"{{ csrf_token|escapejs }}"}'
+     hx-swap="none"
+     hx-trigger="load">
+</div>

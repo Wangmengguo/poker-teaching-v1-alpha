@@ -1,0 +1,11 @@
+{
+  "medium": {
+    "call_le": 0.50,
+    "mix_to": 0.52,
+    "mix_freq": 0.35
+  },
+  "weak": {
+    "call_le": 0.30
+  }
+}
+

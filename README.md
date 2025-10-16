@@ -73,12 +73,122 @@ export SUGGEST_V1_ROLLOUT_PCT=0           # auto 灰度
 export SUGGEST_FLOP_VALUE_RAISE=1         # flop 价值加注 JSON（默认 1）
 export SUGGEST_PREFLOP_ENABLE_4BET=0      # SB vs 3bet 4bet（默认 0）
 export SUGGEST_LOCALE=zh                  # explanations 语言（默认 zh）
+export SUGGEST_MIXING=on                  # 行为混频（稳定哈希），默认 on；设为 off 关闭
+export SUGGEST_FLOP_CALL_VS_LARGE_POTODDS=0.50  # 面对大尺吋/全下的“必防”价位上限
+export SUGGEST_FLOP_FOLD_VS_LARGE_POTODDS=0.55  # 面对大尺吋/全下的“必弃”价位下限
+export SUGGEST_PREFLOP_DEFEND_SHOVE=1     # 预留开关（当前默认启用，读取配置表）
 
 # 调试
 export SUGGEST_DEBUG=1                    # 返回 debug.meta（pot_odds/size_tag/rule_path 等）
 export SUGGEST_CONFIG_DIR=packages/poker_core/suggest  # 可外置覆盖配置
 export SUGGEST_TABLE_MODE=HU
 ```
+
+— CI 稳定混频（Deterministic Mixing for CI） —
+
+为避免“混频抽样导致的用例随机失败”，在 CI 环境建议开启混频但固定采样种子：
+
+```bash
+# 建议用于 CI 的环境变量（示例）
+export SUGGEST_MIXING=on
+export SUGGEST_MIX_SEED=fixed         # hand|session|fixed（默认 hand）
+export SUGGEST_MIX_FIXED_KEY=ci       # fixed 模式下的基种子
+export SUGGEST_MIX_SALT=ci            # 可选盐值；同一套 CI 保持稳定，不同流水线可更换
+```
+
+模式说明（SUGGEST_MIX_SEED）：
+- `hand`（默认）：以 `hand_id` 为基种子（更贴近实战，回放一致）。
+- `session`：优先使用 `session_id/config_profile/strategy_name`，同一会话内稳定。
+- `fixed`：使用 `SUGGEST_MIX_FIXED_KEY` 作为固定基种子；可配合 `SUGGEST_MIX_SALT` 做隔离，适合 CI。
+
+本仓库的 GitHub Actions 已采用上述变量，保证混频开启但运行稳定、可复现。
+
+— 默认行为说明（v1 + mixing on） —
+
+自 2025-10-15 起，系统默认启用建议策略 v1 且混频开启（无需设置环境变量）：
+- 默认策略：`SUGGEST_POLICY_VERSION=v1`（服务层默认值）。
+- 默认混频：`SUGGEST_MIXING=on`（策略层默认值）。
+
+默认行为要点（教学/实战皆适用）：
+- 预翻全下防守（HU，对全下/仅剩 call|fold 节点）：
+  - `packages/poker_core/suggest/config/preflop_vs_shove_HU.json` 按 `le12/13to20/gt20` 划分强制跟注与混频跟注的组合集；
+  - `JJ+/AK` 必跟；`TT/AQs/KQs` 在深筹段以给定频率混跟（可由表调整）；
+  - 行为受混频控制并稳定哈希，避免被固定频率剥削。
+- 翻牌与河牌的大尺吋防守（`two_third+`）：
+  - 翻牌：中对/弱顶对在 `pot_odds ≤ 0.50` 时必防，灰区混跟，否则弃；
+  - 河牌：按 `river_semantics` 的摊牌价值分层（强/中/弱/空气）+ 价格兜底，强价值必跟，中等价值在合理价格范围内跟或混跟，弱摊牌仅在极佳赔率下勉强跟；
+  - 阈值可通过 `packages/poker_core/suggest/config/river_defense.json` 或对应环境变量覆盖。
+
+— 一键验证脚本 —
+
+1) 极端对手“能全下就全下”的鲁棒性检查（均值应接近 0，不能被一招剥削）：
+
+```bash
+python scripts/sim_always_allin_vs_bot.py --sessions 30 --hands 60 --seed 271828
+# 观察输出：wins/losses 接近均衡、mean human PnL 接近 0（±若干筹码）
+```
+
+2) 对垒平台（Arena Duel）
+   使用两个机器人，分别带不同的策略参数进行对攻，输出胜负与 A 方均值 PnL：
+
+   ```bash
+   # A: baseline（v1 + mixing on）；B: exploit（预翻全下剥削）
+   python scripts/arena_duel.py --sessions 50 --hands 60 --seed 123 \
+     --a.policy v1 --a.mixing on --a.exploit none \
+     --b.policy v1 --b.mixing on --b.exploit vs_allin
+
+   # 双剥削（自洽性检查，长期应接近 0）
+   python scripts/arena_duel.py --sessions 50 --hands 60 --seed 123 \
+     --a.policy v1 --a.mixing on --a.exploit vs_allin \
+     --b.policy v1 --b.mixing on --b.exploit vs_allin
+   ```
+
+   参数说明：
+   - `--*.policy`: `v0|v1`（默认 v1）
+   - `--*.mixing`: `on|off`（默认 on）
+   - `--*.strategy`: `loose|medium|tight`（默认 medium）
+   - `--*.exploit`: `none|vs_allin`（默认 none）。当设置为 `vs_allin` 时，预翻面对“全下型”对手启用剥削表（更宽的必跟/混频跟注）。
+
+— 剥削模式（Exploit） —
+针对单一逻辑对手提供最小可用的剥削开关（先手动，再逐步接入识别）：
+
+```bash
+# 启用预翻 vs 全下剥削（手动）：
+export SUGGEST_EXPLOIT_PROFILE=vs_allin
+
+# 调整“把它视为全下”的识别阈值（默认 8bb）：
+export SUGGEST_SHOVE_DETECT_TO_CALL_BB=8.0
+```
+
+实现要点：
+- 预翻全下识别更健壮：除纯 `call/fold` 节点外，当 `to_call_bb ≥ 阈值` 时也视为“面对全下”（即使引擎仍列出 `raise`）。
+- 剥削表：`packages/poker_core/suggest/config/preflop_vs_shove_HU_exploit.json`（`le12/13to20/gt20`）在短码显著放宽 `call/mix` 组合，深筹谨慎放宽。
+- 运行时通过 `SUGGEST_EXPLOIT_PROFILE=vs_allin` 自动切换到该表；未开启时沿用默认防守表 `preflop_vs_shove_HU.json`。
+ - 先手 Exploit Jam：当我们“先手行动 + vs_allin”时，以“高权益牌（近似≥50% vs random）”直接全下（SB 场景）。
+   - 规则近似：任意对子、任意 Ax、以及 KQ/KJ/KT、QJ/QT、JT(s)、T9s 等；
+   - 原理：对手会“能全下就全下”，面对我们的全下只能跟注；在深筹下先手全下的盈亏平衡权益约为 `to_call / (2*to_call + pot)`≈0.5，因此上述组合具有正期望；
+   - 仅在 `SUGGEST_EXPLOIT_PROFILE=vs_allin` 打开时启用，不影响常规（非剥削）模式。
+
+提示：以上脚本均无需显式设置策略变量；服务层与策略层已默认 v1 + 混频 on。
+
+— 后续优化路线（策略表与阈值的系统化收敛） —
+
+- 预翻 vs shove（对栈深敏感）：
+  - 以“有效筹码（bb）× 位置（SB/BB）”为键扩展防守表；现有 `le12/13to20/gt20` 作为起点，细化至 `≤8/9–12/13–20/21–40/41–100/101–200`；
+  - 为 `mix_map` 提供每组合独立频率，并允许按位置与盲注比例（SB/BB 比）微调；
+  - 通过对垒平台批量试验不同频率（网格/贝叶斯优化），以“均值 PnL≈0”为收敛准则并生成快照。
+
+- 翻牌/河牌大尺吋兜底（对 SPR/纹理敏感）：
+  - 将现有阈值细分到 SPR 段（`low/mid/high`），不同纹理（dry/semi/wet）加载不同 `call_le/mix_to`；
+  - 在河牌 `medium_value` 的灰区，频率由对垒结果反推（保证总体不低于 MDF 的同时避免过度跟注）。
+
+- 统一“短码/长码”认知：
+  - 建议在 `SuggestContext.modes` 中引入 `eff_bb_bands`，策略在构造 Observation 后根据 `to_call/pot_now/eff_stack` 映射到 band，从而加载对应的表或阈值；
+  - 预翻与翻后公用该 band，确保短码（≤20bb）与深筹（≥100bb）行为有本质差异。
+
+- 校准与回归：
+  - 对垒回归：固定种子集（如 200 个），每次策略/表变更后跑 `arena_duel.py` 并产出 `mean PnL` 区间；
+  - 线上观测：追加 Prometheus 指标（`defend_shove_total`、`river_defend_large_total`）与价位分箱，持续监控防守频率与胜率。
 
 — 调试脚本 —
 - 单次：`python scripts/suggest_debug_tool.py single --policy auto --pct 10 --debug 1 --seed 42 --button 0`
@@ -119,7 +229,25 @@ export SUGGEST_TABLE_MODE=HU
 -— 策略关键口径 —
 - 赔率：`pot_odds = to_call / (pot_now + to_call)`；`pot_now = pot + sum(invested_street)`（不含本次待跟注）。
 - SB vs 3bet 兜底：仅当 `pot_odds <= defend_threshold_ip`（默认 0.42）或三注极小（<2.2bb）时补跟，其余 fallback 直接弃牌。
-- Flop 对大尺吋防守：面对 `two_third+`、无坚果优势且手牌不在 `{HC_VALUE, HC_STRONG_DRAW, HC_OP_TPTK}` 时，`pot_odds > 0.40` 触发保守弃牌。
+- Flop 对大尺吋防守（改良）：面对 `two_third+`（含过池/全下），若无坚果优势且手牌不在 `{HC_VALUE, HC_STRONG_DRAW, HC_OP_TPTK}`：
+  - `pot_odds ≤ 0.50` 且为中对/弱顶（`HC_TOP_WEAK_OR_SECOND|HC_MID_OR_THIRD_MINUS`）→ 直接跟注；
+  - `0.50 < pot_odds ≤ 0.55` → 可选混频跟注（`SUGGEST_MIXING=on` 时启用，稳定哈希决定频率，受 MDF 轻微影响）；
+  - `pot_odds > 0.55` → 弃牌；
+  - 阈值可通过 `SUGGEST_FLOP_CALL_VS_LARGE_POTODDS`（默认 0.50）与 `SUGGEST_FLOP_FOLD_VS_LARGE_POTODDS`（默认 0.55）配置。
+
+- Preflop 全下防守（新）：
+  - 识别“纯 call/fold”节点（对手已全下）。
+  - 组合表驱动（HU）：`packages/poker_core/suggest/config/preflop_vs_shove_HU.json` 按 `le12/13to20/gt20`（以 `to_call_bb` 为准）定义 `call/mix` 组合。
+  - 决策：`call` → 必跟；`mix` → 开启混频（`SUGGEST_MIXING=on`）按固定频率跟注；否则回退到价格兜底（通常 fold）。
+  - 元信息：`meta.vs_shove_band`、`meta.to_call_bb`；解释码复用 `PF_DEFEND_PRICE_OK`（带 `src=vs_shove`）。
+
+- River 大尺吋防守（新，fallback）：
+  - 使用 `river_semantics` 计算摊牌价值分层（`strong_value|medium_value|weak_showdown|air`）。
+  - 面对 `two_third+`：
+    - `strong_value` → 必跟；
+    - `medium_value` → `pot_odds ≤ 0.50` 必跟；`0.50–0.52` 混频跟注（`SUGGEST_MIXING=on`）；否则弃牌；
+    - `weak_showdown/air` → `pot_odds ≤ 0.30` 勉强跟注，否则弃牌；
+  - 可调：`SUGGEST_RIVER_MEDIUM_CALL_POTODDS`（默认 0.50）、`SUGGEST_RIVER_MEDIUM_MIX_POTODDS`（默认 0.52）、`SUGGEST_RIVER_WEAK_CALL_POTODDS`（默认 0.30）。
 - Flop 半诈唬/价值加注：`HC_STRONG_DRAW` 现可对 `third|half` 下注选择 `SizeSpec.tag("half")` 半诈唬加注；低 SPR (`le3`) 的 `HC_OP_TPTK` 面对 `third|half` 自动升级到 `two_third` 价值加注。
 - 最小重开（postflop raise to‑amount）：若目标金额 < `raise.min`，提升至 `raise.min` → 再参与合法区间钳制（越界触发 `W_CLAMPED`）。
 - 对抗三桶阈值：来自 `table_modes_{strategy}.json` 的 `threebet_bucket_small_le/mid_le`。
@@ -133,9 +261,32 @@ export SUGGEST_TABLE_MODE=HU
   - 上下文/观测：`context.py`｜`observations.py`
   - 决策与工具：`decision.py`｜`calculators.py`｜`utils.py`
   - 教学解释：`explanations.py`
-  - 规则与表：`config/`（preflop ranges、flop/turn/river 规则 JSON）
+- 规则与表：`config/`（preflop ranges、flop/turn/river 规则 JSON）
 - REST：`apps/web-django/api/`（`views_suggest.py`、`views_play.py`、`views_ui.py`）
 - UI：`apps/web-django/templates/ui/`（错误/HUD/牌面/座位/日志/动作/金额/Coach）
+
+— 最小升级（Minimal Upgrade） —
+- 启用 preflop facing 键：运行时 node_key 现在会在翻前也携带 `facing=third|half|two_third+|na`（原逻辑强制 `na`）。旧表仍可命中（服务层会回退到 `facing=na`）。
+- 翻前最小表（可选，一次性生成/更新）：
+  ```bash
+  python tools/build_preflop_min_table.py --out artifacts/policies/preflop.npz
+  ```
+  该最小表覆盖 `pot_type=limped/single_raised/threebet` × `role=na|caller|pfr` × `pos=ip|oop` × `facing=na|third|half|two_third+` × `hand=pair|Ax_suited|suited_broadway|broadway_offsuit|weak`。
+- 三注池覆盖：新增工具 `tools/augment_policy_tables.py`，把 `postflop.npz` 中所有 `single_raised` 节点镜像为 `threebet` 节点并回写文件。
+  - 用法：
+    ```bash
+    python tools/augment_policy_tables.py --in artifacts/policies/postflop.npz --out artifacts/policies/postflop.npz
+    ```
+  - 生效方式：
+    ```bash
+    export SUGGEST_POLICY_DIR=artifacts/policies
+    # 正常启动/调用 suggest 即可；threebet 池在 flop/turn/river 将直接命中表。
+    ```
+  - 可选剥削开关（默认 none）：
+    ```bash
+    export SUGGEST_EXPLOIT_PROFILE=none   # 或 vs_allin
+    ```
+  - 验证：`pytest -q tests/test_policy_loader_threebet_nodes.py` 应通过，并在日志中看到 `policy_lookup_hit`。
 
 — 测试与验证（Test） —
 - 单元与集成：`python -m pytest -q` 覆盖 calculators/context/observations/策略子模块/Decision/服务整合。

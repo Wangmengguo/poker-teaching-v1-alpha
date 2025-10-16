@@ -1,7 +1,7 @@
 {
   "codes": [],
   "meta": {
-    "rule_path": "single_raised/role/caller/oop/dry/ge6/defaults:value_two_pair_plus",
+    "rule_path": "single_raised/role/caller/oop/dry/ge6/defaults:overpair_or_top_pair_strong",
     "size_tag": "na"
   },
   "policy": "turn_v1",
