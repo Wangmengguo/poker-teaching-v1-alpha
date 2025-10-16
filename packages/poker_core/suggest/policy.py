@@ -1231,6 +1231,8 @@ def _policy_postflop_generic(
         )
     )
     if street == "river":
+        # Load river defense config once for both override and fallback paths
+        cfgd = _get_river_defense() or {}
         override = apply_river_facing_adjustment(
             river_ctx, str(meta.get("facing_size_tag") or "na")
         )
@@ -1242,7 +1244,6 @@ def _policy_postflop_generic(
             # Soft price-based salvage against overfolding on large sizes
             facing = str(meta.get("facing_size_tag") or "na")
             tier = str(river_ctx.get("tier") or "unknown")
-            cfgd = _get_river_defense() or {}
             try:
                 med_call = float(
                     (cfgd.get("medium", {}) or {}).get(
