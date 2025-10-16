@@ -492,7 +492,16 @@ def _mixing_enabled() -> bool:
 
 
 def _mix_seed_base(obs: Observation) -> str:
+    """Return deterministic base key for mixing.
+
+    Modes (via SUGGEST_MIX_SEED):
+    - hand (default): use hand_id
+    - session: prefer session_id/config_profile/strategy_name if available
+    - fixed: use SUGGEST_MIX_FIXED_KEY (or 'fixed') — ideal for CI determinism
+    """
     mode = (os.getenv("SUGGEST_MIX_SEED") or "hand").strip().lower()
+    if mode == "fixed":
+        return str(os.getenv("SUGGEST_MIX_FIXED_KEY") or "fixed")
     if mode == "session":
         ctx = getattr(obs, "context", None)
         profile = getattr(ctx, "profile", None) if ctx is not None else None
@@ -566,6 +575,9 @@ def _select_action_from_node(
         if _mixing_enabled():
             seed_base = _mix_seed_base(obs)
             seed_key = f"{seed_base}:{node_key}" if seed_base else node_key or "mix"
+            salt = os.getenv("SUGGEST_MIX_SALT")
+            if salt:
+                seed_key = f"{seed_key}:salt={salt}"
             idx = stable_weighted_choice(seed_key, weights)
             idx = max(0, min(idx, len(arms) - 1))
             meta["frequency"] = normalized[idx]
@@ -998,6 +1010,9 @@ def policy_flop_v1(
                     seed_base = _mix_seed_base(obs)
                     seed_key = f"defend_large:{seed_base}:{meta.get('facing_size_tag')}:to={to_call}:pot={pot_now}:{obs.combo}"
                     # choose call with probability p
+                    salt = os.getenv("SUGGEST_MIX_SALT")
+                    if salt:
+                        seed_key = f"{seed_key}:salt={salt}"
                     idx = stable_weighted_choice(seed_key, [1.0 - p, p])
                     if idx == 1:
                         decision = Decision(action="call", meta={})
@@ -1288,6 +1303,9 @@ def _policy_postflop_generic(
                             f"rv_defend_large:{_mix_seed_base(obs)}:{tier}:{round(pot_odds,3)}"
                         )
                         p = 0.35
+                        salt = os.getenv("SUGGEST_MIX_SALT")
+                        if salt:
+                            seed_key = f"{seed_key}:salt={salt}"
                         idx = stable_weighted_choice(seed_key, [1.0 - p, p])
                         if idx == 1:
                             decision = Decision(action="call", meta={})
@@ -1383,6 +1401,9 @@ def _policy_postflop_generic(
                 if med_call < pot_odds <= med_mix and _mixing_enabled():
                     seed_key = f"rv_defend_large:{_mix_seed_base(obs)}:{tier}:{round(pot_odds,3)}"
                     p = float((cfgd.get("medium", {}) or {}).get("mix_freq", 0.35))
+                    salt = os.getenv("SUGGEST_MIX_SALT")
+                    if salt:
+                        seed_key = f"{seed_key}:salt={salt}"
                     idx = stable_weighted_choice(seed_key, [1.0 - p, p])
                     if idx == 1:
                         decision = Decision(action="call", meta={})

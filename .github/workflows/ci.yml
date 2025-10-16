@@ -48,6 +48,9 @@ jobs:
       # Suggest service defaults
       SUGGEST_POLICY_VERSION: v1
       SUGGEST_MIXING: on
+      SUGGEST_MIX_SEED: fixed
+      SUGGEST_MIX_FIXED_KEY: ci
+      SUGGEST_MIX_SALT: ci
       SUGGEST_POLICY_DIR: artifacts/policies
       # Django
       DJANGO_SECRET_KEY: ci-secret
@@ -77,4 +80,3 @@ jobs:
       - name: Run tests
         run: |
           pytest -q
-

@@ -458,6 +458,9 @@ def decide_preflop_vs_shove(
             pass
         if _mixing_enabled():
             seed_key = f"pf_vs_shove:{obs.hand_id}:{combo}:{band}:{round(to_call_bb,2)}"
+            salt = os.getenv("SUGGEST_MIX_SALT")
+            if salt:
+                seed_key = f"{seed_key}:salt={salt}"
             idx = stable_weighted_choice(seed_key, [1.0 - base, base])
             if idx == 1:
                 rationale.append(
