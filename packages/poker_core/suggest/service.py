@@ -55,8 +55,48 @@ except Exception:  # pragma: no cover - metrics 模块缺失时降级为 no-op
 
 
 FACING_ALIAS_MAP = {
-    "two_third+": ["two_third_plus"],
+    # Legacy large bucket and common synonyms
+    "two_third+": [
+        "two_third_plus",
+        "two_third",
+        "twothird+",
+        "2/3",
+        "0.66pot",
+        # map larger explicit size tags to the legacy large bucket for table lookup
+        "pot",
+        "1.0pot",
+        "100%",
+        "overbet",
+        "overbet_1.2x",
+        "overbet_1.5x",
+        "overbet_2x",
+        "overbet_huge",
+        "all_in",
+        "allin",
+    ],
     "two_third_plus": ["two_third+"],
+    # Small/third bucket synonyms
+    "third": [
+        "one_third",
+        "1/3",
+        "third_pot",
+        "0.33pot",
+        "small",
+    ],
+    # Half bucket synonyms
+    "half": [
+        "1/2",
+        "half_pot",
+        "0.5pot",
+    ],
+    # Explicit pot maps back to large for cross-compat
+    "pot": ["two_third+"],
+    # Overbet family maps back to large for cross-compat
+    "overbet": ["two_third+"],
+    "overbet_1.2x": ["two_third+"],
+    "overbet_1.5x": ["two_third+"],
+    "overbet_2x": ["two_third+"],
+    "overbet_huge": ["two_third+"],
 }
 
 
@@ -90,12 +130,28 @@ def _candidate_keys(base_key: str | None, facing_tag: str) -> list[tuple[str, st
         candidates.append(("exact", base_key))
         seen.add(base_key)
 
+    # 1) Same-facing alias variants
     for alias_tag in FACING_ALIAS_MAP.get(facing_tag, []):
         alias_key = _replace_facing(base_key, alias_tag)
         if alias_key not in seen:
             candidates.append(("alias", alias_key))
             seen.add(alias_key)
 
+    # 2) If large family, also try legacy large bucket explicitly
+    if facing_tag in {
+        "pot",
+        "overbet",
+        "overbet_1.2x",
+        "overbet_1.5x",
+        "overbet_2x",
+        "overbet_huge",
+    }:
+        legacy_large = _replace_facing(base_key, "two_third+")
+        if legacy_large not in seen:
+            candidates.append(("alias", legacy_large))
+            seen.add(legacy_large)
+
+    # 3) Fallback to facing=na
     fallback_key = _replace_facing(base_key, "na")
     if fallback_key not in seen:
         candidates.append(("facing_na", fallback_key))

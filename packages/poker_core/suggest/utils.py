@@ -1,6 +1,7 @@
 # poker_core/suggest/utils.py
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 from hashlib import sha1
 from math import isfinite
@@ -214,6 +215,63 @@ def _modes_hu() -> dict[str, Any]:
         return {}
 
 
+def derive_facing_size_tag_extended(to_call: int, pot_now: int) -> tuple[str, str, float]:
+    """Return (base_tag, fine_tag, pot_odds) for facing bet size.
+
+    Ratio definition:
+      Let P_pre be the pot size before villain's current bet. We derive it as:
+        - If pot_now > to_call, assume pot_now already includes the bet → P_pre = pot_now - to_call.
+        - Else, assume pot_now is already pre-bet → P_pre = pot_now.
+
+      r = to_call / P_pre
+
+      - r < 0.30 → base='small',   fine='small'
+      - 0.30 ≤ r < 0.45 → base='third',     fine='third'
+      - 0.45 ≤ r < 0.60 → base='half',      fine='half'
+      - 0.60 ≤ r < 0.85 → base='two_third', fine='two_third'
+      - 0.85 ≤ r < 1.15 → base='pot',       fine='pot'
+      - r ≥ 1.15 → base='overbet', fine ∈ {'overbet_1.2x','overbet_1.5x','overbet_2x','overbet_huge'}
+
+    Pot odds use the same P_pre for consistency with thresholds:
+      pot_odds = to_call / (P_pre + to_call)
+    """
+    try:
+        tc = float(to_call)
+        pn = float(pot_now)
+        if tc <= 0 or pn <= 0:
+            return ("na", "na", 0.0)
+
+        # Infer pre-bet pot robustly across differing service conventions
+        p_pre = pn - tc if pn > tc else pn
+        if p_pre <= 0:
+            # Degenerate edge; avoid division by zero and mark N/A
+            return ("na", "na", 0.0)
+
+        r = tc / p_pre
+        pot_odds = tc / (p_pre + tc)
+
+        # Fine tag first for overbet buckets
+        if r >= 2.5:
+            return ("overbet", "overbet_huge", pot_odds)
+        if r >= 1.75:
+            return ("overbet", "overbet_2x", pot_odds)
+        if r >= 1.35:
+            return ("overbet", "overbet_1.5x", pot_odds)
+        if r >= 1.15:
+            return ("overbet", "overbet_1.2x", pot_odds)
+        if r >= 0.85:
+            return ("pot", "pot", pot_odds)
+        if r >= 0.60:
+            return ("two_third", "two_third", pot_odds)
+        if r >= 0.45:
+            return ("half", "half", pot_odds)
+        if r >= 0.30:
+            return ("third", "third", pot_odds)
+        return ("small", "small", pot_odds)
+    except Exception:
+        return ("na", "na", 0.0)
+
+
 def derive_facing_size_tag(to_call: int, pot_now: int) -> str:
     """Classify facing bet size by to_call/(pot_now) ratio.
 
@@ -223,16 +281,34 @@ def derive_facing_size_tag(to_call: int, pot_now: int) -> str:
       - else → 'two_third+'
     Note: pot_now excludes hero's pending call by our service convention.
     """
-    if pot_now <= 0 or to_call <= 0:
+    # Backward-compatible default path (legacy thresholds) unless explicitly enabled
+    use_extended = (os.getenv("SUGGEST_EXTENDED_FACING") or "0").strip().lower() in {
+        "1",
+        "on",
+        "true",
+    }
+    if not use_extended:
+        if pot_now <= 0 or to_call <= 0:
+            return "na"
+        r = float(to_call) / float(pot_now)
+        m = _modes_hu()
+        small_le = float(m.get("flop_facing_small_le", 0.45))
+        mid_le = float(m.get("flop_facing_mid_le", 0.75))
+        if r <= small_le:
+            return "third"
+        if r <= mid_le:
+            return "half"
+        return "two_third+"
+
+    # Extended classification enabled → degrade to legacy tags for callers of legacy API
+    base, fine, _ = derive_facing_size_tag_extended(to_call, pot_now)
+    if base in {"na"}:
         return "na"
-    r = float(to_call) / float(pot_now)
-    m = _modes_hu()
-    small_le = float(m.get("flop_facing_small_le", 0.45))
-    mid_le = float(m.get("flop_facing_mid_le", 0.75))
-    if r <= small_le:
+    if base in {"small", "third"}:
         return "third"
-    if r <= mid_le:
+    if base == "half":
         return "half"
+    # two_third/pot/overbet/allin → legacy 'two_third+'
     return "two_third+"
 
 

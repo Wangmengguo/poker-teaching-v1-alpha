@@ -11,7 +11,12 @@
             "le3": {
               "value_two_pair_plus": {
                 "action": "bet",
-                "size_tag": "two_third"
+                "size_tag": "two_third",
+                "facing": {
+                  "third": {"action": "raise", "size_tag": "half", "plan": "小注：薄价值加注"},
+                  "half": {"call_le": 0.65},
+                  "two_third_plus": {"call_le": 0.60}
+                }
               },
               "overpair_or_top_pair_strong": {
                 "action": "bet",

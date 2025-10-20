@@ -3,7 +3,10 @@
     "role": {
       "pfr": {
         "ip": {
-          "dry": {"defaults": {"action": "bet", "size_tag": "third"}, "le3": {"defaults": {"action": "bet", "size_tag": "third"}}, "3to6": {"defaults": {"action": "bet", "size_tag": "third"}}, "ge6": {"defaults": {"action": "bet", "size_tag": "third"}}},
+          "dry": {"defaults": {"action": "bet", "size_tag": "third"}, "le3": {"defaults": {"action": "bet", "size_tag": "third"},
+                   "strong_value": {"facing": {"pot": {"call_le": 0.85, "plan": "河牌强价值：满池跟注"}, "two_third_plus": {"call_le": 0.80}}},
+                   "medium_value": {"facing": {"pot": {"call_le": 0.70, "mix_to": 0.75, "mix_freq": 0.35}, "two_third_plus": {"call_le": 0.60}}}
+                 }, "3to6": {"defaults": {"action": "bet", "size_tag": "third"}}, "ge6": {"defaults": {"action": "bet", "size_tag": "third"}}},
           "semi": {"defaults": {"action": "bet", "size_tag": "half"}, "le3": {"defaults": {"action": "bet", "size_tag": "half"}}, "3to6": {"defaults": {"action": "bet", "size_tag": "half"}}, "ge6": {"defaults": {"action": "bet", "size_tag": "half"}}},
           "wet": {"defaults": {"action": "check"}, "le3": {"defaults": {"action": "check"}}, "3to6": {"defaults": {"action": "check"}}, "ge6": {"defaults": {"action": "check"}}}
         },

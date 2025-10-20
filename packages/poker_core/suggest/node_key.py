@@ -15,6 +15,32 @@ _FACING_ALIASES = {
     "twothird+": "two_third+",
     "third_pot": "third",
     "half_pot": "half",
+    # extended common variants
+    "one_third": "third",
+    "1/3": "third",
+    "0.33pot": "third",
+    "thirty_three": "third",
+    "fifty": "half",
+    "1/2": "half",
+    "0.5pot": "half",
+    "two_thirds": "two_third+",
+    "2/3": "two_third+",
+    "0.66pot": "two_third+",
+    "seventy": "two_third+",
+    # extended large sizing buckets → collapse to legacy large bucket
+    "pot": "two_third+",
+    "1.0pot": "two_third+",
+    "100%": "two_third+",
+    "overbet": "two_third+",
+    "overbet_1.2x": "two_third+",
+    "overbet_1.5x": "two_third+",
+    "overbet_2x": "two_third+",
+    "overbet_huge": "two_third+",
+    "all_in": "two_third+",
+    "allin": "two_third+",
+    # small aliases collapse to 'third' legacy bucket
+    "small": "third",
+    "0.25pot": "third",
 }
 
 _KNOWN_FACING = {"na", "third", "half", "two_third+"}
@@ -32,12 +58,29 @@ def canonical_facing_tag(value: Any) -> str:
     return "na"
 
 
-# Map internal hand_class labels to table-friendly labels used by NPZ policies.
+# Map internal postflop 6-bucket labels to NPZ table labels.
+# Internal (runtime) buckets:
+#   - value_two_pair_plus
+#   - overpair_or_top_pair_strong
+#   - top_pair_weak_or_second_pair
+#   - middle_pair_or_third_pair_minus
+#   - strong_draw
+#   - weak_draw_or_air
+# NPZ table buckets:
+#   - value_two_pair_plus
+#   - overpair_or_tptk
+#   - top_pair_weak_or_second
+#   - middle_pair_or_third_minus
+#   - strong_draw
+#   - weak_draw (plus finer splits like air/overcards_no_bdfd which our 6-bucket folds into)
 _HAND_ALIASES_POSTFLOP = {
-    # 6-bucket → NPZ 8-bucket近似映射
+    "value_two_pair_plus": "value_two_pair_plus",
     "overpair_or_top_pair_strong": "overpair_or_tptk",
     "top_pair_weak_or_second_pair": "top_pair_weak_or_second",
     "middle_pair_or_third_pair_minus": "middle_pair_or_third_minus",
+    "strong_draw": "strong_draw",
+    # Our weakest bucket aggregates multiple NPZ categories; map to a common denominator
+    # so lookups succeed broadly. If finer-grained splits are added upstream, extend here.
     "weak_draw_or_air": "weak_draw",
 }
 
