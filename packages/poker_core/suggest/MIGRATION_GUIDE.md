@@ -11,6 +11,12 @@
 - 评估统一：`hand_strength.py` 将翻前标签与翻后六桶统一为 `HandStrength`。
 - 规则追踪：flop 返回 `meta.rule_path`。
 
+### v1.2（本次）
+- 面对下注分类扩展：引入 `derive_facing_size_tag_extended` 支持 `small/third/half/two_third/pot/overbet_{1.2x,1.5x,2x,huge}` 与精确 pot_odds。
+- 兼容旧表：服务层/node_key 将 `pot/overbet_*` 退化映射为 `two_third+` 以提升查表命中率。
+- 通用防守框架：新增 `defense.py` + `config/defense_thresholds.json`，在 JSON 规则缺失时依据 (街道×手牌档×facing×pot_odds) 给出 call/raise/mix/fold 建议。
+- 灰度开关：`SUGGEST_EXTENDED_FACING`（扩展分类）与 `SUGGEST_DEFENSE_V1`（防守框架）。
+
 ## 对外契约（保持不变）
 - `build_suggestion` 仍返回 `{hand_id, actor, suggested{action,amount?}, rationale[], policy, meta?}`。
 - 仅新增 meta 字段（例如 `rule_path/cap_bb`），不会移除历史字段。
@@ -39,6 +45,7 @@
 - 最小重开：避免策略内手动追加 rationale；由 Decision.resolve 统一追加 `PL_MIN_REOPEN_LIFT`。
 - clamp 提示：服务层仅在金额超出合法区间时追加一次 `WARN_CLAMPED`。
 - 规则 defaults：当 trace 中出现 `defaults:*`，说明当前层缺失规则；请优先补齐 JSON，而非在代码内硬编码。
+- 防守阈值：`defense_thresholds.json` 为教学优先、保守参数，建议与 solver 对齐后逐步微调；生产前通过灰度开关观察对局数据。
 
 ## 文件索引
 - 上下文/计算：packages/poker_core/suggest/context.py、packages/poker_core/suggest/calculators.py、packages/poker_core/suggest/decision.py

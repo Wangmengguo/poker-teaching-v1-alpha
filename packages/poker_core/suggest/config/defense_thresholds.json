@@ -1,0 +1,94 @@
+{
+  "flop": {
+    "value_two_pair_plus": {
+      "third": {"raise_to": "half", "raise_call_le": 0.55, "plan": "小注：价值加注"},
+      "half":  {"raise_to": "two_third", "raise_call_le": 0.65, "plan": "中注：价值加注"},
+      "two_third": {"call_le": 0.75, "plan": "大注：以跟注为主"},
+      "pot": {"call_le": 0.80, "plan": "满池：顽强防守"},
+      "overbet_1.5x": {"call_le": 0.86, "mix_to": 0.90, "mix_freq": 0.35, "plan": "超池：强价值可抗压"},
+      "overbet_2x": {"call_le": 0.90, "plan": "极大超池：强价值坚持"}
+    },
+    "weak_draw_or_air": {
+      "third": {"call_le": 0.35, "plan": "小注：极佳价格少量防守"},
+      "half": {"fold_gt": 0.45, "plan": "中注：以弃为主"},
+      "two_third": {"fold_gt": 0.50, "plan": "大注：弃牌"},
+      "pot": {"fold_gt": 0.52, "plan": "满池：弃牌"},
+      "overbet_1.2x": {"fold_gt": 0.54, "plan": "超池：弃牌"},
+      "overbet_1.5x": {"fold_gt": 0.55, "plan": "大超池：弃牌"},
+      "overbet_2x": {"fold_gt": 0.55, "plan": "极大超池：弃牌"},
+      "overbet_huge": {"fold_gt": 0.55, "plan": "极大超池：弃牌"}
+    },
+    "overpair_or_top_pair_strong": {
+      "third": {"call_le": 0.60, "plan": "小注：稳定防守"},
+      "half":  {"call_le": 0.55, "mix_to": 0.60, "mix_freq": 0.3, "plan": "中注：灰区混频"},
+      "two_third": {"call_le": 0.52, "fold_gt": 0.60, "plan": "大注：谨慎防守"},
+      "pot": {"fold_gt": 0.60, "plan": "满池：以弃为主"},
+      "overbet_1.5x": {"fold_gt": 0.58, "plan": "超池：大多弃牌"}
+    },
+    "strong_draw": {
+      "third": {"call_le": 0.60, "plan": "强听牌：小注轻松防守"},
+      "half": {"call_le": 0.55, "plan": "中注：价格合适可跟"},
+      "two_third": {"call_le": 0.50, "fold_gt": 0.60, "plan": "大注：价格差弃牌"},
+      "pot": {"fold_gt": 0.58, "plan": "满池：以弃为主"},
+      "overbet_1.5x": {"fold_gt": 0.55, "plan": "超池：弃牌"}
+    },
+    "top_pair_weak_or_second_pair": {
+      "third": {"call_le": 0.55, "plan": "小注：可防守"},
+      "half": {"call_le": 0.50, "mix_to": 0.55, "mix_freq": 0.25, "plan": "中注：灰区少量防守"},
+      "two_third": {"fold_gt": 0.55, "plan": "大注：多弃牌"},
+      "pot": {"fold_gt": 0.52, "plan": "满池：弃牌"}
+    }
+  },
+  "turn": {
+    "value_two_pair_plus": {
+      "third": {"raise_to": "half", "raise_call_le": 0.55, "plan": "价值加注"},
+      "half": {"call_le": 0.65},
+      "two_third": {"call_le": 0.72},
+      "pot": {"call_le": 0.80}
+    },
+    "strong_draw": {
+      "third": {"call_le": 0.58},
+      "half": {"call_le": 0.54},
+      "two_third": {"fold_gt": 0.58},
+      "pot": {"fold_gt": 0.56}
+    },
+    "top_pair_weak_or_second_pair": {
+      "third": {"call_le": 0.52},
+      "half": {"fold_gt": 0.55},
+      "two_third": {"fold_gt": 0.52},
+      "pot": {"fold_gt": 0.50}
+    }
+  },
+  "river": {
+    "strong_value": {
+      "third": {"raise_to": "half", "raise_call_le": 0.60, "plan": "薄价值"},
+      "half":  {"call_le": 0.75, "plan": "中注：几乎都跟"},
+      "two_third": {"call_le": 0.80},
+      "pot": {"call_le": 0.85},
+      "overbet_1.5x": {"call_le": 0.90}
+    },
+    "medium_value": {
+      "third": {"call_le": 0.60},
+      "half": {"call_le": 0.65},
+      "two_third": {"call_le": 0.60, "mix_to": 0.65, "mix_freq": 0.35},
+      "pot": {"call_le": 0.70, "mix_to": 0.75, "mix_freq": 0.35},
+      "overbet_1.5x": {"call_le": 0.80, "mix_to": 0.82, "mix_freq": 0.35}
+    },
+    "weak_showdown": {
+      "third": {"call_le": 0.45},
+      "half": {"call_le": 0.40},
+      "two_third": {"fold_gt": 0.55},
+      "pot": {"fold_gt": 0.52},
+      "overbet_1.5x": {"fold_gt": 0.50}
+    },
+    "air": {
+      "third": {"call_le": 0.30},
+      "half": {"fold_gt": 0.45},
+      "two_third": {"fold_gt": 0.40},
+      "pot": {"fold_gt": 0.38},
+      "overbet_1.5x": {"fold_gt": 0.35}
+    }
+  }
+}
+
+

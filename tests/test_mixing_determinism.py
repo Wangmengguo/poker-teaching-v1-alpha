@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 from collections import Counter
 
@@ -67,8 +69,8 @@ def _make_obs(acts: list[LegalAction]) -> Observation:
 
 
 def test_stable_weighted_choice_deterministic():
-    weights = [0.15, 0.35, 0.5]
-    key = "hand123:node_xyz"
+    key = "hand123:node_key_abc"
+    weights = [0.2, 0.3, 0.5]
     first = stable_weighted_choice(key, weights)
     second = stable_weighted_choice(key, weights)
     assert first == second

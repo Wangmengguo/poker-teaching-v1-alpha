@@ -17,6 +17,7 @@ from .codes import SCodes
 from .codes import mk_rationale as R
 from .decision import Decision
 from .decision import SizeSpec
+from .defense import decide_defense
 from .flop_rules import get_flop_rules
 from .node_key import node_key_from_observation
 from .policy_preflop import decide_bb_defend
@@ -40,6 +41,36 @@ from .utils import find_action
 from .utils import pick_betlike_action
 from .utils import stable_weighted_choice
 from .utils import to_call_from_acts
+
+
+def _lookup_class_node_for_rules(
+    rules: dict[str, Any],
+    pot_type: str,
+    role_key: str,
+    ip_key: str,
+    texture: str,
+    spr: str,
+    hand_class: str,
+) -> tuple[dict[str, Any] | None, str]:
+    cur: Any = rules
+    path_parts: list[str] = []
+    try:
+        for k in [pot_type, "role", role_key, ip_key, texture, spr]:
+            if isinstance(cur, dict) and k in cur:
+                cur = cur[k]
+                path_parts.append(k)
+            elif isinstance(cur, dict) and "defaults" in cur:
+                cur = cur["defaults"]
+                path_parts.append(f"defaults:{k}")
+            else:
+                return None, "/".join(path_parts)
+        node = cur.get(str(hand_class)) if isinstance(cur, dict) else None
+        if isinstance(node, dict):
+            return node, "/".join(path_parts + [str(hand_class)])
+    except Exception:
+        return None, "/".join(path_parts)
+    return None, "/".join(path_parts)
+
 
 # 与 analysis 中口径保持一致的范围判定（避免耦合：基于 tags/hand_class）
 OPEN_RANGE_TAGS = {"pair", "suited_broadway", "Ax_suited", "broadway_offsuit"}
@@ -854,6 +885,87 @@ def policy_flop_v1(
     except Exception:
         pass
 
+    # Generic facing rule lookup for current class (if provided in JSON)
+    try:
+        _role = role if pot_type != "limped" else "na"
+        cls_node, cls_path = _lookup_class_node_for_rules(
+            rules, pot_type, _role, ip_key, texture, spr, str(obs.hand_class or "unknown")
+        )
+        facing_dict = cls_node.get("facing") if isinstance(cls_node, dict) else None
+        if isinstance(facing_dict, dict):
+            key = "two_third_plus" if fst == "two_third+" else fst
+            fr = facing_dict.get(key)
+            if isinstance(fr, dict):
+                meta.setdefault("rule_path", f"{cls_path}/facing.{key}")
+                # thresholds first
+                to_call = int(obs.to_call or 0)
+                pot_now = int(obs.pot_now or 0)
+                denom = pot_now + max(0, to_call)
+                pot_odds = (to_call / denom) if denom > 0 else 1.0
+                call_le = fr.get("call_le")
+                mix_to = fr.get("mix_to")
+                mix_freq = fr.get("mix_freq", 0.35)
+                fold_gt = fr.get("fold_gt")
+                if (
+                    call_le is not None
+                    and find_action(acts, "call")
+                    and float(pot_odds) <= float(call_le)
+                ):
+                    decision = Decision(action="call", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    return suggested, rationale + drat, "flop_v1", meta
+                if (
+                    call_le is not None
+                    and mix_to is not None
+                    and float(call_le) < float(pot_odds) <= float(mix_to)
+                    and find_action(acts, "call")
+                ):
+                    if _mixing_enabled():
+                        seed_key = f"fl_rule_mix:{_mix_seed_base(obs)}:{cls_path}:{key}:{round(pot_odds,3)}"
+                        idx = stable_weighted_choice(
+                            seed_key, [1.0 - float(mix_freq), float(mix_freq)]
+                        )
+                        if idx == 1:
+                            decision = Decision(action="call", meta={})
+                            suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                            meta.update(dmeta)
+                            meta["frequency"] = float(mix_freq)
+                            return suggested, rationale + drat, "flop_v1", meta
+                if (
+                    fold_gt is not None
+                    and float(pot_odds) > float(fold_gt)
+                    and find_action(acts, "fold")
+                ):
+                    decision = Decision(action="fold", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    return suggested, rationale + drat, "flop_v1", meta
+                # direct action fallback
+                action = fr.get("action")
+                size_tag = fr.get("size_tag")
+                if action in {"bet", "raise"} and (
+                    find_action(acts, action) or pick_betlike_action(acts)
+                ):
+                    st = str(size_tag or "half")
+                    decision = Decision(
+                        action=action, sizing=SizeSpec.tag(st), meta={"size_tag": st}
+                    )
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    return suggested, rationale + drat, "flop_v1", meta
+                if action == "call" and find_action(acts, "call"):
+                    decision = Decision(action="call", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    return suggested, rationale + drat, "flop_v1", meta
+                if action == "fold" and find_action(acts, "fold"):
+                    decision = Decision(action="fold", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    return suggested, rationale + drat, "flop_v1", meta
+    except Exception:
+        pass
     # Default MDF 展示
     rationale.append(
         R(
@@ -861,6 +973,25 @@ def policy_flop_v1(
             data={"mdf": meta["mdf"], "pot_odds": meta["pot_odds"], "facing": fst},
         )
     )
+
+    # Defense framework v1 (opt-in; before heuristic fallbacks)
+    try:
+        if (os.getenv("SUGGEST_DEFENSE_V1") or "0").strip().lower() in {"1", "on", "true"}:
+            res = decide_defense(obs, acts, enable_mix=_mixing_enabled())
+        else:
+            res = None
+    except Exception:
+        res = None
+    if res:
+        dec, dmeta, drat = res
+        suggested, decision_meta, decision_rationale = dec.resolve(obs, acts, cfg)
+        meta.update(decision_meta)
+        if isinstance(dmeta, dict):
+            meta.update(dmeta)
+        rationale.extend(decision_rationale)
+        if isinstance(drat, list):
+            rationale.extend(drat)
+        return suggested, rationale, "flop_v1", meta
     # threebet: add light value-raise and semi-bluff raise stubs
     if getattr(obs, "pot_type", "single_raised") == "threebet":
         # value raise vs small/half when we hold two_pair+ (OOP/IP)
@@ -1008,7 +1139,14 @@ def policy_flop_v1(
                 p = max(0.10, min(base + max(0.0, (mdf_val - 0.5)) * 0.2, 0.60))
                 if _mixing_enabled():
                     seed_base = _mix_seed_base(obs)
-                    seed_key = f"defend_large:{seed_base}:{meta.get('facing_size_tag')}:to={to_call}:pot={pot_now}:{obs.combo}"
+                    try:
+                        from .node_key import node_key_from_observation as _nk
+
+                        node_key = _nk(obs) or ""
+                    except Exception:
+                        node_key = ""
+                    # Stabilize mixing per node within a hand
+                    seed_key = f"defend_large:{seed_base}:{node_key}"
                     # choose call with probability p
                     salt = os.getenv("SUGGEST_MIX_SALT")
                     if salt:
@@ -1286,6 +1424,112 @@ def _policy_postflop_generic(
             },
         )
     )
+    # Generic facing rule lookup for turn/river before defense
+    try:
+        key = str(meta.get("facing_size_tag") or "na")
+        key = "two_third_plus" if key == "two_third+" else key
+        cls_node, cls_path = _lookup_class_node_for_rules(
+            rules,
+            pot_type,
+            role_key,
+            ip_key,
+            texture,
+            spr,
+            str(getattr(obs, "hand_class", "unknown")),
+        )
+        facing_dict = cls_node.get("facing") if isinstance(cls_node, dict) else None
+        if isinstance(facing_dict, dict):
+            fr = facing_dict.get(key)
+            if isinstance(fr, dict):
+                meta["rule_path"] = (
+                    f"{base_path}/{str(getattr(obs, 'hand_class', 'unknown'))}/facing.{key}"
+                )
+                to_call = int(getattr(obs, "to_call", 0) or 0)
+                pot_now = int(getattr(obs, "pot_now", 0) or 0)
+                denom = pot_now + max(0, to_call)
+                pot_odds = (to_call / denom) if denom > 0 else 1.0
+                call_le = fr.get("call_le")
+                mix_to = fr.get("mix_to")
+                mix_freq = fr.get("mix_freq", 0.35)
+                fold_gt = fr.get("fold_gt")
+                if (
+                    call_le is not None
+                    and find_action(acts, "call")
+                    and float(pot_odds) <= float(call_le)
+                ):
+                    decision = Decision(action="call", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    return suggested, rationale + drat, f"{street}_v1", meta
+                if (
+                    call_le is not None
+                    and mix_to is not None
+                    and float(call_le) < float(pot_odds) <= float(mix_to)
+                    and find_action(acts, "call")
+                ):
+                    if (os.getenv("SUGGEST_MIXING") or "on").strip().lower() == "on":
+                        seed_key = f"tr_rule_mix:{_mix_seed_base(obs)}:{cls_path}:{key}:{round(pot_odds,3)}"
+                        idx = stable_weighted_choice(
+                            seed_key, [1.0 - float(mix_freq), float(mix_freq)]
+                        )
+                        if idx == 1:
+                            decision = Decision(action="call", meta={})
+                            suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                            meta.update(dmeta)
+                            meta["frequency"] = float(mix_freq)
+                            return suggested, rationale + drat, f"{street}_v1", meta
+                if (
+                    fold_gt is not None
+                    and float(pot_odds) > float(fold_gt)
+                    and find_action(acts, "fold")
+                ):
+                    decision = Decision(action="fold", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    return suggested, rationale + drat, f"{street}_v1", meta
+                action = fr.get("action")
+                size_tag = fr.get("size_tag")
+                if action in {"bet", "raise"} and (
+                    find_action(acts, action) or pick_betlike_action(acts)
+                ):
+                    st = str(size_tag or "half")
+                    decision = Decision(
+                        action=action, sizing=SizeSpec.tag(st), meta={"size_tag": st}
+                    )
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    return suggested, rationale + drat, f"{street}_v1", meta
+                if action == "call" and find_action(acts, "call"):
+                    decision = Decision(action="call", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    return suggested, rationale + drat, f"{street}_v1", meta
+                if action == "fold" and find_action(acts, "fold"):
+                    decision = Decision(action="fold", meta={})
+                    suggested, dmeta, drat = decision.resolve(obs, acts, cfg)
+                    meta.update(dmeta)
+                    return suggested, rationale + drat, f"{street}_v1", meta
+    except Exception:
+        pass
+    # Defense framework v1 (opt-in)
+    try:
+        if (os.getenv("SUGGEST_DEFENSE_V1") or "0").strip().lower() in {
+            "1",
+            "on",
+            "true",
+        } and street != "river":
+            res_def = decide_defense(obs, acts, enable_mix=None)
+        else:
+            res_def = None
+    except Exception:
+        res_def = None
+    if res_def:
+        dec, dmeta, drat = res_def
+        suggested, dmeta2, drat2 = dec.resolve(obs, acts, cfg)
+        meta.update(dmeta2)
+        if isinstance(dmeta, dict):
+            meta.update(dmeta)
+        return suggested, rationale + list(drat or []) + list(drat2 or []), f"{street}_v1", meta
     if street == "river":
         # Load river defense config once for both override and fallback paths
         cfgd = _get_river_defense() or {}
@@ -1405,6 +1649,22 @@ def _policy_postflop_generic(
                     meta.update(dmeta)
                     meta["size_tag"] = str(override_size)
                     return suggested, rationale + drat, f"{street}_v1", meta
+
+        # Defense framework v1 (opt-in) after river override
+        try:
+            if (os.getenv("SUGGEST_DEFENSE_V1") or "0").strip().lower() in {"1", "on", "true"}:
+                res_def = decide_defense(obs, acts, enable_mix=None)
+            else:
+                res_def = None
+        except Exception:
+            res_def = None
+        if res_def:
+            dec, dmeta, drat = res_def
+            suggested, dmeta2, drat2 = dec.resolve(obs, acts, cfg)
+            meta.update(dmeta2)
+            if isinstance(dmeta, dict):
+                meta.update(dmeta)
+            return suggested, rationale + list(drat or []) + list(drat2 or []), f"{street}_v1", meta
 
         # Fallback: defend vs large river sizes using value tier when no override
         facing = str(meta.get("facing_size_tag") or "na")

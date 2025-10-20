@@ -1,4 +1,49 @@
 {
+  "tiers": {
+    "strong_value": {
+      "facing": {
+        "third": {"action": "raise", "size_tag": "two_third"},
+        "half": {"action": "call"},
+        "two_third+": {"action": "call"},
+        "default": {"action": "call"}
+      },
+      "plan": "强价值：面对大注以跟注为主，小注可加注获取薄价值。"
+    },
+    "medium_value": {
+      "facing": {
+        "third": {"action": "call"},
+        "half": {"action": "call"},
+        "two_third+": {"action": "fold"},
+        "default": {"action": "call"}
+      },
+      "plan": "中等成手：小中注防守，面对过大下注谨慎弃牌。"
+    },
+    "weak_showdown": {
+      "facing": {
+        "third": {"action": "call"},
+        "half": {"action": "fold"},
+        "two_third+": {"action": "fold"},
+        "default": {"action": "fold"}
+      },
+      "plan": "弱摊牌：小注防守一次，较大下注多放弃。"
+    },
+    "air": {
+      "facing": {
+        "third": {"action": "fold"},
+        "half": {"action": "fold"},
+        "two_third+": {"action": "fold"},
+        "default": {"action": "fold"}
+      },
+      "plan": "空气牌：面对下注以弃牌为主。"
+    }
+  },
+  "facing_size_map": {
+    "small": ["third"],
+    "mid": ["half"],
+    "large": ["two_third+", "two_third", "2/3", "0.66pot", "seventy"]
+  }
+}
+{
   "medium": {
     "call_le": 0.50,
     "mix_to": 0.52,

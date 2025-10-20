@@ -63,3 +63,7 @@ site/
 # Temporary files
 *.tmp
 *.temp
+
+# Generated reports (do not commit churny run outputs)
+reports/arena_*.summary.csv
+reports/arena_*.summary.md
